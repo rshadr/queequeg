@@ -6,9 +6,7 @@ CXXFLAGS += -std=c++20
 CXXFLAGS += -Wall -Wextra -pedantic -O2
 CXXFLAGS += -ggdb3
 CXXFLAGS += -march=native -ftree-vectorize
-# CXXFLAGS += -I/usr/local/include/
-CXXFLAGS += $(CFLAGS_GRAPHEME)
-CXXFLAGS += -DEZ_OBJECT_REF=''
+CXXFLAGS += $(shell pkg-config --cflags libgrapheme)
 # CXXFLAGS += --coverage
 # LDFLAGS = --coverage -lgcov
 # CXXFLAGS += -pg

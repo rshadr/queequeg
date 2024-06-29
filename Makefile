@@ -12,6 +12,7 @@ CXXFLAGS += -I.
 SRCS =\
   browser/main\
   html_parser/tokenizer\
+  html_parser/tokenizer_states\
   html_parser/treebuilder\
   html_parser/parser\
 

@@ -11,9 +11,18 @@
  * during compilation.
  *
  */
+#include <uchar.h>
+
+#define INFRA_SHORT_NAMES
+#include <infra/ascii.h>
+#include <infra/unicode.h>
+#include <infra/string.h>
+
+#include "html_parser/common.hh"
+
 
 static enum tokenizer_status
-data_state(struct tokenizer *tokenizer, char32_t c)
+data_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '&':
@@ -26,22 +35,22 @@ data_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
-      emit_character(tokenizer, c);
+      tokenizer->error("unexpected-null-character");
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      return tokenizer->emit_eof();
 
     default:
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
   }
 }
 
 
 static enum tokenizer_status
-rcdata_state(struct tokenizer *tokenizer, char32_t c)
+rcdata_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '&':
@@ -55,22 +64,22 @@ rcdata_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
-      emit_character(tokenizer, 0xFFFD);
+      tokenizer->error("unexpected-null-character");
+      tokenizer->emit_character(0xFFFD);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      return tokenizer->emit_eof();
 
     default:
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
   }
 }
 
 
 static enum tokenizer_status
-rawtext_state(struct tokenizer *tokenizer, char32_t c)
+rawtext_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '<':
@@ -78,22 +87,22 @@ rawtext_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
-      emit_character(tokenizer, 0xFFFD);
+      tokenizer->error("unexpected-null-character");
+      tokenizer->emit_character(0xFFFD);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      return tokenizer->emit_eof();
 
     default:
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
   }
 }
 
 
 static enum tokenizer_status
-script_state(struct tokenizer *tokenizer, char32_t c)
+script_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '<':
@@ -101,41 +110,41 @@ script_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
-      emit_character(tokenizer, 0xFFFD);
+      tokenizer->error("unexpected-null-character");
+      tokenizer->emit_character(0xFFFD);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      return tokenizer->emit_eof();
 
     default:
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
   }
 }
 
 
 static enum tokenizer_status
-plaintext_state(struct tokenizer *tokenizer, char32_t c)
+plaintext_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
-      emit_character(tokenizer, 0xFFFD);
+      tokenizer->error("unexpected-null-character");
+      tokenizer->emit_character(0xFFFD);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-     return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+     return tokenizer->emit_eof();
 
     default:
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
   }
 }
 
 
 static enum tokenizer_status
-tag_open_state(struct tokenizer *tokenizer, char32_t c)
+tag_open_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alpha(c)) {
     create_start_tag(tokenizer);
@@ -153,19 +162,19 @@ tag_open_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '?':
-      tokenizer_error(tokenizer, "unexpected-question-mark-instead-of-tag-name");
-      create_comment(tokenizer);
+      tokenizer->error("unexpected-question-mark-instead-of-tag-name");
+      tokenizer->create_comment();
       tokenizer->state = BOGUS_COMMENT_STATE;
       return TOKENIZER_STATUS_RECONSUME;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-before-tag-name");
-      emit_character(tokenizer, '<');
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-before-tag-name");
+      tokenizer->emit_character('<');
+      return tokenizer->emit_eof();
 
     default:
-      tokenizer_error(tokenizer, "invalid-first-character-of-tag-name");
-      emit_character(tokenizer, '<');
+      tokenizer->error("invalid-first-character-of-tag-name");
+      tokenizer->emit_character('<');
       tokenizer->state = DATA_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -173,7 +182,7 @@ tag_open_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-end_tag_open_state(struct tokenizer *tokenizer, char32_t c)
+end_tag_open_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alpha(c)) {
     create_end_tag(tokenizer);
@@ -183,19 +192,19 @@ end_tag_open_state(struct tokenizer *tokenizer, char32_t c)
 
   switch (c) {
     case '>':
-      tokenizer_error(tokenizer, "missing-end-tag-name");
+      tokenizer->error("missing-end-tag-name");
       tokenizer->state = DATA_STATE;
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-before-tag-name");
-      emit_character(tokenizer, '<');
-      emit_character(tokenizer, '/');
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-before-tag-name");
+      tokenizer->emit_character('<');
+      tokenizer->emit_character('/');
+      return tokenizer->emit_eof();
 
     default:
-      tokenizer_error(tokenizer, "invalid-first-character-of-tag-name");
-      create_comment(tokenizer);
+      tokenizer->error("invalid-first-character-of-tag-name");
+      tokenizer->create_comment();
       tokenizer->state = BOGUS_COMMENT_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -203,7 +212,7 @@ end_tag_open_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-tag_name_state(struct tokenizer *tokenizer, char32_t c)
+tag_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
     infra_string_put_char(tokenizer->tag.tagname, c|0x20);
@@ -225,13 +234,13 @@ tag_name_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       infra_string_put_unicode(tokenizer->tag.tagname, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-tag");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-tag");
+      return tokenizer->emit_eof();
 
     default:
       infra_string_put_char(tokenizer->tag.tagname, c);
@@ -241,7 +250,7 @@ tag_name_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-rcdata_lt_state(struct tokenizer *tokenizer, char32_t c)
+rcdata_lt_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '/':
@@ -250,7 +259,7 @@ rcdata_lt_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     default:
-      emit_character(tokenizer, '<');
+      tokenizer->emit_character('<');
       tokenizer->state = RCDATA_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -258,7 +267,7 @@ rcdata_lt_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-rcdata_end_tag_open_state(struct tokenizer *tokenizer, char32_t c)
+rcdata_end_tag_open_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alpha(c)) {
     create_end_tag(tokenizer);
@@ -267,8 +276,8 @@ rcdata_end_tag_open_state(struct tokenizer *tokenizer, char32_t c)
   }
 
   {
-    emit_character(tokenizer, '<');
-    emit_character(tokenizer, '/');
+    tokenizer->emit_character('<');
+    tokenizer->emit_character('/');
     tokenizer->state = RCDATA_STATE;
     return TOKENIZER_STATUS_RECONSUME;
   }
@@ -276,7 +285,7 @@ rcdata_end_tag_open_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-rcdata_end_tag_name_state(struct tokenizer *tokenizer, char32_t c)
+rcdata_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
     infra_string_put_char(tokenizer->tag.tagname, c|0x20);
@@ -312,8 +321,8 @@ rcdata_end_tag_name_state(struct tokenizer *tokenizer, char32_t c)
 
     default:
 anything_else:
-      emit_character(tokenizer, '<');
-      emit_character(tokenizer, '/');
+      tokenizer->emit_character('<');
+      tokenizer->emit_character('/');
       /* ... */
       tokenizer->state = RCDATA_STATE;
       return TOKENIZER_STATUS_RECONSUME;
@@ -322,7 +331,7 @@ anything_else:
 
 
 static enum tokenizer_status
-rawtext_lt_state(struct tokenizer *tokenizer, char32_t c)
+rawtext_lt_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '/':
@@ -331,7 +340,7 @@ rawtext_lt_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     default:
-      emit_character(tokenizer, '<');
+      tokenizer->emit_character('<');
       tokenizer->state = RAWTEXT_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -339,7 +348,7 @@ rawtext_lt_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-rawtext_end_tag_open_state(struct tokenizer *tokenizer, char32_t c)
+rawtext_end_tag_open_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alpha(c)) {
     create_end_tag(tokenizer);
@@ -348,15 +357,15 @@ rawtext_end_tag_open_state(struct tokenizer *tokenizer, char32_t c)
   }
 
   {
-    emit_character(tokenizer, '<');
-    emit_character(tokenizer, '/');
+    tokenizer->emit_character('<');
+    tokenizer->emit_character('/');
     return TOKENIZER_STATUS_OK;
   }
 }
 
 
 static enum tokenizer_status
-rawtext_end_tag_name_state(struct tokenizer *tokenizer, char32_t c)
+rawtext_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
     infra_string_put_char(tokenizer->tag.tagname, c|0x20);
@@ -392,8 +401,8 @@ rawtext_end_tag_name_state(struct tokenizer *tokenizer, char32_t c)
 
 anything_else:
     default:
-      emit_character(tokenizer, '<');
-      emit_character(tokenizer, '/');
+      tokenizer->emit_character('<');
+      tokenizer->emit_character('/');
       /* ... */
       tokenizer->state = RAWTEXT_STATE;
       return TOKENIZER_STATUS_OK;
@@ -402,7 +411,7 @@ anything_else:
 
 
 static enum tokenizer_status
-script_lt_state(struct tokenizer *tokenizer, char32_t c)
+script_lt_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '/':
@@ -412,12 +421,12 @@ script_lt_state(struct tokenizer *tokenizer, char32_t c)
 
     case '!':
       tokenizer->state = SCRIPT_ESCAPE_START_STATE;
-      emit_character(tokenizer, '<');
-      emit_character(tokenizer, '!');
+      tokenizer->emit_character('<');
+      tokenizer->emit_character('!');
       return TOKENIZER_STATUS_OK;
 
     default:
-      emit_character(tokenizer, '<');
+      tokenizer->emit_character('<');
       tokenizer->state = SCRIPT_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -425,7 +434,7 @@ script_lt_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-script_end_tag_open_state(struct tokenizer *tokenizer, char32_t c)
+script_end_tag_open_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alpha(c)) {
     create_end_tag(tokenizer);
@@ -434,8 +443,8 @@ script_end_tag_open_state(struct tokenizer *tokenizer, char32_t c)
   }
 
   {
-    emit_character(tokenizer, '<');
-    emit_character(tokenizer, '/');
+    tokenizer->emit_character('<');
+    tokenizer->emit_character('/');
     tokenizer->state = SCRIPT_STATE;
     return TOKENIZER_STATUS_RECONSUME;
   }
@@ -443,7 +452,7 @@ script_end_tag_open_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-script_end_tag_name_state(struct tokenizer *tokenizer, char32_t c)
+script_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
     infra_string_put_char(tokenizer->tag.tagname, c|0x20);
@@ -479,8 +488,8 @@ script_end_tag_name_state(struct tokenizer *tokenizer, char32_t c)
 
     anything_else:
     default:
-      emit_character(tokenizer, '<');
-      emit_character(tokenizer, '/');
+      tokenizer->emit_character('<');
+      tokenizer->emit_character('/');
       /* ... */
       tokenizer->state = SCRIPT_STATE;
       return TOKENIZER_STATUS_RECONSUME;
@@ -489,12 +498,12 @@ script_end_tag_name_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-script_escape_start_state(struct tokenizer *tokenizer, char32_t c)
+script_escape_start_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
       tokenizer->state = SCRIPT_ESCAPE_START_DASH_STATE;
-      emit_character(tokenizer, '-');
+      tokenizer->emit_character('-');
       return TOKENIZER_STATUS_OK;
 
     default:  
@@ -505,12 +514,12 @@ script_escape_start_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-script_escape_start_dash_state(struct tokenizer *tokenizer, char32_t c)
+script_escape_start_dash_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
       tokenizer->state = SCRIPT_ESCAPED_DASH_DASH_STATE;
-      emit_character(tokenizer, '-');
+      tokenizer->emit_character('-');
       return TOKENIZER_STATUS_OK;
 
     default:
@@ -521,12 +530,12 @@ script_escape_start_dash_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-script_escaped_state(struct tokenizer *tokenizer, char32_t c)
+script_escaped_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
       tokenizer->state = SCRIPT_ESCAPED_DASH_STATE;
-      emit_character(tokenizer, '-');
+      tokenizer->emit_character('-');
       return TOKENIZER_STATUS_OK;
 
     case '<':
@@ -534,28 +543,28 @@ script_escaped_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
-      emit_character(tokenizer, 0xFFFD);
+      tokenizer->error("unexpected-null-character");
+      tokenizer->emit_character(0xFFFD);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-script-html-comment-like-text");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-script-html-comment-like-text");
+      return tokenizer->emit_eof();
 
     default:
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
   }
 }
 
 
 static enum tokenizer_status
-script_escaped_dash_state(struct tokenizer *tokenizer, char32_t c)
+script_escaped_dash_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
       tokenizer->state = SCRIPT_ESCAPED_DASH_DASH_STATE;
-      emit_character(tokenizer, '-');
+      tokenizer->emit_character('-');
       return TOKENIZER_STATUS_OK;
 
     case '<':
@@ -563,29 +572,29 @@ script_escaped_dash_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       tokenizer->state = SCRIPT_ESCAPED_STATE;
-      emit_character(tokenizer, 0xFFFD);
+      tokenizer->emit_character(0xFFFD);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-script-html-comment-like-text");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-script-html-comment-like-text");
+      return tokenizer->emit_eof();
 
     default:
       tokenizer->state = SCRIPT_ESCAPED_STATE;
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
   }
 }
 
 
 static enum tokenizer_status
-script_escaped_dash_dash_state(struct tokenizer *tokenizer, char32_t c)
+script_escaped_dash_dash_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
-      emit_character(tokenizer, '-');
+      tokenizer->emit_character('-');
       return TOKENIZER_STATUS_OK;
 
     case '<':
@@ -594,33 +603,33 @@ script_escaped_dash_dash_state(struct tokenizer *tokenizer, char32_t c)
 
     case '>':
       tokenizer->state = SCRIPT_STATE;
-      emit_character(tokenizer, '>');
+      tokenizer->emit_character('>');
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       tokenizer->state = SCRIPT_ESCAPED_STATE;
-      emit_character(tokenizer, 0xFFFD);
+      tokenizer->emit_character(0xFFFD);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-script-html-comment-like-text");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-script-html-comment-like-text");
+      return tokenizer->emit_eof();
 
     default:
       tokenizer->state = SCRIPT_ESCAPED_STATE;
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
   }
 }
 
 
 static enum tokenizer_status
-script_escaped_lt_state(struct tokenizer *tokenizer, char32_t c)
+script_escaped_lt_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alpha(c)) {
     infra_string_zero(tokenizer->tmpbuf);
-    emit_character(tokenizer, '<');
+    tokenizer->emit_character('<');
     tokenizer->state = SCRIPT_DOUBLE_ESCAPE_START_STATE;
     return TOKENIZER_STATUS_RECONSUME;
   }
@@ -632,7 +641,7 @@ script_escaped_lt_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     default:
-      emit_character(tokenizer, '<');
+      tokenizer->emit_character('<');
       tokenizer->state = SCRIPT_ESCAPED_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -640,7 +649,7 @@ script_escaped_lt_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-script_escaped_end_tag_open_state(struct tokenizer *tokenizer, char32_t c)
+script_escaped_end_tag_open_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alpha(c)) {
     create_end_tag(tokenizer);
@@ -649,8 +658,8 @@ script_escaped_end_tag_open_state(struct tokenizer *tokenizer, char32_t c)
   }
 
   {
-    emit_character(tokenizer, '<');
-    emit_character(tokenizer, '/');
+    tokenizer->emit_character('<');
+    tokenizer->emit_character('/');
     tokenizer->state = SCRIPT_ESCAPED_STATE;
     return TOKENIZER_STATUS_RECONSUME;
   }
@@ -658,7 +667,7 @@ script_escaped_end_tag_open_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-script_escaped_end_tag_name_state(struct tokenizer *tokenizer, char32_t c)
+script_escaped_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
     infra_string_put_char(tokenizer->tag.tagname, c|0x20);
@@ -694,8 +703,8 @@ script_escaped_end_tag_name_state(struct tokenizer *tokenizer, char32_t c)
 
     default:
 anything_else:
-      emit_character(tokenizer, '<');
-      emit_character(tokenizer, '/');
+      tokenizer->emit_character('<');
+      tokenizer->emit_character('/');
       /* ... */
       tokenizer->state = SCRIPT_ESCAPED_STATE;
       return TOKENIZER_STATUS_RECONSUME;
@@ -704,7 +713,7 @@ anything_else:
 
 
 static enum tokenizer_status
-script_double_escape_start_state(struct tokenizer *tokenizer, char32_t c)
+script_double_escape_start_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
     infra_string_put_char(tokenizer->tag.tagname, c|0x20);
@@ -724,7 +733,7 @@ script_double_escape_start_state(struct tokenizer *tokenizer, char32_t c)
         tokenizer->state = SCRIPT_DOUBLE_ESCAPED_STATE;
       else
         tokenizer->state = SCRIPT_ESCAPED_STATE;
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
 
     default:
@@ -735,111 +744,111 @@ script_double_escape_start_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-script_double_escaped_state(struct tokenizer *tokenizer, char32_t c)
+script_double_escaped_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
       tokenizer->state = SCRIPT_DOUBLE_ESCAPED_DASH_STATE;
-      emit_character(tokenizer, '-');
+      tokenizer->emit_character('-');
       return TOKENIZER_STATUS_OK;
 
     case '<':
       tokenizer->state = SCRIPT_DOUBLE_ESCAPED_LT_STATE;
-      emit_character(tokenizer, '<');
+      tokenizer->emit_character('<');
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
-      emit_character(tokenizer, 0xFFFD);
+      tokenizer->error("unexpected-null-character");
+      tokenizer->emit_character(0xFFFD);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-script-html-comment-like-text");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-script-html-comment-like-text");
+      return tokenizer->emit_eof();
 
     default:
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
   }
 }
 
 
 static enum tokenizer_status
-script_double_escaped_dash_state(struct tokenizer *tokenizer, char32_t c)
+script_double_escaped_dash_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
       tokenizer->state = SCRIPT_DOUBLE_ESCAPED_DASH_DASH_STATE;
-      emit_character(tokenizer, '-');
+      tokenizer->emit_character('-');
       return TOKENIZER_STATUS_OK;
 
     case '<':
       tokenizer->state = SCRIPT_DOUBLE_ESCAPED_LT_STATE;
-      emit_character(tokenizer, '<');
+      tokenizer->emit_character('<');
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       tokenizer->state = SCRIPT_DOUBLE_ESCAPED_STATE;
-      emit_character(tokenizer, 0xFFFD);
+      tokenizer->emit_character(0xFFFD);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-script-html-comment-like-text");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-script-html-comment-like-text");
+      return tokenizer->emit_eof();
 
     default:
       tokenizer->state = SCRIPT_DOUBLE_ESCAPED_STATE;
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
   }
 }
 
 
 static enum tokenizer_status
-script_double_escaped_dash_dash_state(struct tokenizer *tokenizer, char32_t c)
+script_double_escaped_dash_dash_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
-      emit_character(tokenizer, '-');
+      tokenizer->emit_character('-');
       return TOKENIZER_STATUS_OK;
 
     case '<':
       tokenizer->state = SCRIPT_DOUBLE_ESCAPED_LT_STATE;
-      emit_character(tokenizer, '<');
+      tokenizer->emit_character('<');
       return TOKENIZER_STATUS_OK;
 
     case '>':
       tokenizer->state = SCRIPT_STATE;
-      emit_character(tokenizer, 0xFFFD);
+      tokenizer->emit_character(0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       tokenizer->state = SCRIPT_DOUBLE_ESCAPED_STATE;
-      emit_character(tokenizer, 0xFFFD);
+      tokenizer->emit_character(0xFFFD);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-script-html-comment-like-text");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-script-html-comment-like-text");
+      return tokenizer->emit_eof();
 
     default:
       tokenizer->state = SCRIPT_DOUBLE_ESCAPED_STATE;
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
   }
 }
 
 
 static enum tokenizer_status
-script_double_escaped_lt_state(struct tokenizer *tokenizer, char32_t c)
+script_double_escaped_lt_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '/':
       infra_string_zero(tokenizer->tmpbuf);
       tokenizer->state = SCRIPT_DOUBLE_ESCAPE_END_STATE;
-      emit_character(tokenizer, '/');
+      tokenizer->emit_character('/');
       return TOKENIZER_STATUS_OK;
 
     default:
@@ -850,17 +859,17 @@ script_double_escaped_lt_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-script_double_escape_end_state(struct tokenizer *tokenizer, char32_t c)
+script_double_escape_end_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
     infra_string_put_char(tokenizer->tmpbuf, c|0x20);
-    emit_character(tokenizer, c);
+    tokenizer->emit_character(c);
     return TOKENIZER_STATUS_OK;
   }
 
   if (ascii_is_lower_alpha(c)) {
     infra_string_put_char(tokenizer->tmpbuf, c);
-    emit_character(tokenizer, c);
+    tokenizer->emit_character(c);
     return TOKENIZER_STATUS_OK;
   }
 
@@ -870,7 +879,7 @@ script_double_escape_end_state(struct tokenizer *tokenizer, char32_t c)
         tokenizer->state = SCRIPT_ESCAPED_STATE;
       else
         tokenizer->state = SCRIPT_DOUBLE_ESCAPED_STATE;
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
 
     default:
@@ -881,18 +890,18 @@ script_double_escape_end_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-before_attr_name_state(struct tokenizer *tokenizer, char32_t c)
+before_attr_name_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
       return TOKENIZER_STATUS_OK;
 
-    case '/': case '>': case -1:
+    case '/': case '>': case static_cast<char32_t>(-1):
       tokenizer->state = AFTER_ATTR_NAME_STATE;
       return TOKENIZER_STATUS_RECONSUME;
 
     case '=':
-      tokenizer_error(tokenizer, "unexpected-equals-sign-before-attribute-name");
+      tokenizer->error("unexpected-equals-sign-before-attribute-name");
       /* ... */
       tokenizer->state = ATTR_NAME_STATE;
       return TOKENIZER_STATUS_OK;
@@ -906,7 +915,7 @@ before_attr_name_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-attr_name_state(struct tokenizer *tokenizer, char32_t c)
+attr_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
     /* ... */
@@ -914,7 +923,8 @@ attr_name_state(struct tokenizer *tokenizer, char32_t c)
   }
 
   switch (c) {
-    case '\t': case '\n': case '\f': case ' ': case '/': case '>': case -1:
+    case '\t': case '\n': case '\f': case ' ': case '/': case '>':
+    case static_cast<char32_t>(-1):
       tokenizer->state = AFTER_ATTR_NAME_STATE;
       return TOKENIZER_STATUS_RECONSUME;
 
@@ -923,12 +933,12 @@ attr_name_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       /* ... */
       return TOKENIZER_STATUS_OK;
 
     case '\"': case '\'': case '<':
-      tokenizer_error(tokenizer, "unexpected-character-in-attribute-name");
+      tokenizer->error("unexpected-character-in-attribute-name");
       /* ... */
       return TOKENIZER_STATUS_OK;
 
@@ -940,7 +950,7 @@ attr_name_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-after_attr_name_state(struct tokenizer *tokenizer, char32_t c)
+after_attr_name_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
@@ -959,9 +969,9 @@ after_attr_name_state(struct tokenizer *tokenizer, char32_t c)
       emit_tag(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-tag");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-tag");
+      return tokenizer->emit_eof();
 
     default:
       /* XXX */
@@ -972,7 +982,7 @@ after_attr_name_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-before_attr_value_state(struct tokenizer *tokenizer, char32_t c)
+before_attr_value_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
@@ -987,7 +997,7 @@ before_attr_value_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '>':
-      tokenizer_error(tokenizer, "missing-attribute-value");
+      tokenizer->error("missing-attribute-value");
       tokenizer->state = DATA_STATE;
       emit_tag(tokenizer);
       return TOKENIZER_STATUS_OK;
@@ -1000,7 +1010,7 @@ before_attr_value_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-attr_value_double_quoted_state(struct tokenizer *tokenizer, char32_t c)
+attr_value_double_quoted_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\"':
@@ -1013,13 +1023,13 @@ attr_value_double_quoted_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       // infra_string_put_unicode(
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-tag");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-tag");
+      return tokenizer->emit_eof();
 
     default:
       /* XXX */
@@ -1029,7 +1039,7 @@ attr_value_double_quoted_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-attr_value_single_quoted_state(struct tokenizer *tokenizer, char32_t c)
+attr_value_single_quoted_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\'':
@@ -1041,13 +1051,13 @@ attr_value_single_quoted_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       // XXX
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-tag");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-tag");
+      return tokenizer->emit_eof();
 
     default:
       // XXX
@@ -1057,7 +1067,7 @@ attr_value_single_quoted_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-attr_value_unquoted_state(struct tokenizer *tokenizer, char32_t c)
+attr_value_unquoted_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
@@ -1075,16 +1085,16 @@ attr_value_unquoted_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       // XXX
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-tag");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-tag");
+      return tokenizer->emit_eof();
 
     case '\"': case '\'': case '<': case '=': case '`':
-      tokenizer_error(tokenizer, "unexpected-character-in-unquoted-attribute-value");
+      tokenizer->error("unexpected-character-in-unquoted-attribute-value");
       // infra_string_put_unicode(..., c);
       return TOKENIZER_STATUS_OK;
 
@@ -1096,7 +1106,7 @@ attr_value_unquoted_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-after_attr_value_quoted_state(struct tokenizer *tokenizer, char32_t c)
+after_attr_value_quoted_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
@@ -1112,12 +1122,12 @@ after_attr_value_quoted_state(struct tokenizer *tokenizer, char32_t c)
       emit_tag(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-tag");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-tag");
+      return tokenizer->emit_eof();
 
     default:
-      tokenizer_error(tokenizer, "missing-whitespace-between-attributes");
+      tokenizer->error("missing-whitespace-between-attributes");
       tokenizer->state = BEFORE_ATTR_NAME_STATE;
       return TOKENIZER_STATUS_OK;
   }
@@ -1125,7 +1135,7 @@ after_attr_value_quoted_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-self_closing_start_tag_state(struct tokenizer *tokenizer, char32_t c)
+self_closing_start_tag_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '>':
@@ -1134,12 +1144,12 @@ self_closing_start_tag_state(struct tokenizer *tokenizer, char32_t c)
       emit_tag(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-tag");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-tag");
+      return tokenizer->emit_eof();
 
     default:
-      tokenizer_error(tokenizer, "unexpected-solidus-in-tag");
+      tokenizer->error("unexpected-solidus-in-tag");
       tokenizer->state = BEFORE_ATTR_NAME_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -1147,7 +1157,7 @@ self_closing_start_tag_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-bogus_comment_state(struct tokenizer *tokenizer, char32_t c)
+bogus_comment_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '>':
@@ -1155,12 +1165,12 @@ bogus_comment_state(struct tokenizer *tokenizer, char32_t c)
       emit_comment(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
+    case static_cast<char32_t>(-1):
       emit_comment(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       infra_string_put_unicode(tokenizer->comment, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
@@ -1172,12 +1182,12 @@ bogus_comment_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-markup_decl_open_state(struct tokenizer *tokenizer, char32_t c)
+markup_decl_open_state(Tokenizer *tokenizer, char32_t c)
 {
   (void) c;
 
   if (tokenizer_match(tokenizer, S("--"))) {
-    create_comment(tokenizer);
+    tokenizer->create_comment();
     tokenizer->state = COMMENT_START_STATE;
     return TOKENIZER_STATUS_OK;
   }
@@ -1195,15 +1205,15 @@ markup_decl_open_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
     }
 
-    tokenizer_error(tokenizer, "cdata-in-html-content");
+    tokenizer->error("cdata-in-html-content");
     /* ... */
     tokenizer->state = BOGUS_COMMENT_STATE;
     return TOKENIZER_STATUS_OK;
   }
 
   {
-    tokenizer_error(tokenizer, "incorrectly-opened-comment");
-    create_comment(tokenizer);
+    tokenizer->error("incorrectly-opened-comment");
+    tokenizer->create_comment();
     tokenizer->state = BOGUS_COMMENT_STATE;
     return TOKENIZER_STATUS_OK;
   }
@@ -1211,7 +1221,7 @@ markup_decl_open_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-comment_start_state(struct tokenizer *tokenizer, char32_t c)
+comment_start_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
@@ -1219,7 +1229,7 @@ comment_start_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '>':
-      tokenizer_error(tokenizer, "abrupt-closing-of-empty-comment");
+      tokenizer->error("abrupt-closing-of-empty-comment");
       tokenizer->state = DATA_STATE;
       emit_comment(tokenizer);
       return TOKENIZER_STATUS_OK;
@@ -1232,7 +1242,7 @@ comment_start_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-comment_start_dash_state(struct tokenizer *tokenizer, char32_t c)
+comment_start_dash_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
@@ -1240,13 +1250,13 @@ comment_start_dash_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '>':
-      tokenizer_error(tokenizer, "abrupt-closing-of-empty-comment");
+      tokenizer->error("abrupt-closing-of-empty-comment");
       tokenizer->state = DATA_STATE;
       emit_comment(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-comment");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-comment");
       emit_comment(tokenizer);
       return TOKENIZER_STATUS_OK;
 
@@ -1259,7 +1269,7 @@ comment_start_dash_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-comment_state(struct tokenizer *tokenizer, char32_t c)
+comment_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '<':
@@ -1272,13 +1282,13 @@ comment_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       infra_string_put_unicode(tokenizer->comment, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-comment");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-comment");
+      return tokenizer->emit_eof();
 
     default:
       infra_string_put_unicode(tokenizer->comment, c);
@@ -1288,7 +1298,7 @@ comment_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-comment_lt_state(struct tokenizer *tokenizer, char32_t c)
+comment_lt_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '!':
@@ -1308,7 +1318,7 @@ comment_lt_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-comment_lt_bang_state(struct tokenizer *tokenizer, char32_t c)
+comment_lt_bang_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
@@ -1323,7 +1333,7 @@ comment_lt_bang_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-comment_lt_bang_dash_state(struct tokenizer *tokenizer, char32_t c)
+comment_lt_bang_dash_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
@@ -1338,15 +1348,15 @@ comment_lt_bang_dash_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-comment_lt_bang_dash_dash_state(struct tokenizer *tokenizer, char32_t c)
+comment_lt_bang_dash_dash_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
-    case '>': case -1:
+    case '>': case static_cast<char32_t>(-1):
       tokenizer->state = COMMENT_END_STATE;
       return TOKENIZER_STATUS_RECONSUME;
 
     default:
-      tokenizer_error(tokenizer, "nested-comment");
+      tokenizer->error("nested-comment");
       tokenizer->state = COMMENT_END_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -1354,17 +1364,17 @@ comment_lt_bang_dash_dash_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-comment_end_dash_state(struct tokenizer *tokenizer, char32_t c)
+comment_end_dash_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
       tokenizer->state = COMMENT_END_STATE;
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-comment");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-comment");
       emit_comment(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
       infra_string_put_char(tokenizer->comment, '-');
@@ -1375,7 +1385,7 @@ comment_end_dash_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-comment_end_state(struct tokenizer *tokenizer, char32_t c)
+comment_end_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '>':
@@ -1391,10 +1401,10 @@ comment_end_state(struct tokenizer *tokenizer, char32_t c)
       infra_string_put_char(tokenizer->comment, '-');
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-comment");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-comment");
       emit_comment(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
       infra_string_put_chunk(tokenizer->comment, S("--"));
@@ -1405,7 +1415,7 @@ comment_end_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-comment_end_bang_state(struct tokenizer *tokenizer, char32_t c)
+comment_end_bang_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
@@ -1414,15 +1424,15 @@ comment_end_bang_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '>':
-      tokenizer_error(tokenizer, "incorrectly-closed-comment");
+      tokenizer->error("incorrectly-closed-comment");
       tokenizer->state = DATA_STATE;
       emit_comment(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-comment");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-comment");
       emit_comment(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
       infra_string_put_chunk(tokenizer->comment, S("--!"));
@@ -1433,7 +1443,7 @@ comment_end_bang_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-doctype_state(struct tokenizer *tokenizer, char32_t c)
+doctype_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
@@ -1444,13 +1454,13 @@ doctype_state(struct tokenizer *tokenizer, char32_t c)
       tokenizer->state = BEFORE_DOCTYPE_NAME_STATE;
       return TOKENIZER_STATUS_RECONSUME;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
-      tokenizer_error(tokenizer, "missing-whitespace-before-doctype-name");
+      tokenizer->error("missing-whitespace-before-doctype-name");
       tokenizer->state = BEFORE_DOCTYPE_NAME_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -1458,7 +1468,7 @@ doctype_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-before_doctype_name_state(struct tokenizer *tokenizer, char32_t c)
+before_doctype_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
     create_doctype(tokenizer);
@@ -1472,26 +1482,26 @@ before_doctype_name_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       create_doctype(tokenizer);
       infra_string_put_unicode(tokenizer->doctype.name, 0xFFFD);
       tokenizer->state = DOCTYPE_NAME_STATE;
       return TOKENIZER_STATUS_OK;
 
     case '>':
-      tokenizer_error(tokenizer, "missing-doctype-name-state");
+      tokenizer->error("missing-doctype-name-state");
       create_doctype(tokenizer);
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
       emit_doctype(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       create_doctype(tokenizer);
       tokenizer->doctype.force_quirks_flag = true;
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
       create_doctype(tokenizer);
@@ -1503,7 +1513,7 @@ before_doctype_name_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-doctype_name_state(struct tokenizer *tokenizer, char32_t c)
+doctype_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
     infra_string_put_char(tokenizer->doctype.name, c|0x20);
@@ -1521,15 +1531,15 @@ doctype_name_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       infra_string_put_unicode(tokenizer->doctype.name, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
       infra_string_put_unicode(tokenizer->doctype.name, c);
@@ -1539,7 +1549,7 @@ doctype_name_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-after_doctype_name_state(struct tokenizer *tokenizer, char32_t c)
+after_doctype_name_state(Tokenizer *tokenizer, char32_t c)
 {
   (void) c;
 
@@ -1562,14 +1572,14 @@ after_doctype_name_state(struct tokenizer *tokenizer, char32_t c)
       emit_doctype(tokenizer);
       return TOKENIZER_STATUS_OK; 
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
-      tokenizer_error(tokenizer, "invalid-character-sequence-after-doctype-name");
+      tokenizer->error("invalid-character-sequence-after-doctype-name");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = BOGUS_DOCTYPE_STATE;
       return TOKENIZER_STATUS_RECONSUME;
@@ -1578,7 +1588,7 @@ after_doctype_name_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-after_doctype_public_keyword_state(struct tokenizer *tokenizer, char32_t c)
+after_doctype_public_keyword_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
@@ -1586,32 +1596,32 @@ after_doctype_public_keyword_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\"':
-      tokenizer_error(tokenizer, "missing-whitespace-after-doctype-public-keyword");
+      tokenizer->error("missing-whitespace-after-doctype-public-keyword");
       tokenizer->doctype.public_id_missing = false;
       tokenizer->state = DOCTYPE_PUBLIC_ID_DOUBLE_QUOTED_STATE;
       return TOKENIZER_STATUS_OK;
 
     case '\'':
-      tokenizer_error(tokenizer, "missing-whitespace-after-doctype-public-keyword");
+      tokenizer->error("missing-whitespace-after-doctype-public-keyword");
       tokenizer->doctype.public_id_missing = false;
       tokenizer->state = DOCTYPE_PUBLIC_ID_SINGLE_QUOTED_STATE;
       return TOKENIZER_STATUS_OK;
 
     case '>':
-      tokenizer_error(tokenizer, "missing-doctype-public-identifier");
+      tokenizer->error("missing-doctype-public-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
       emit_doctype(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof(tokenizer);
 
     default:
-      tokenizer_error(tokenizer, "missing-quote-before-doctype-public-identifier");
+      tokenizer->error("missing-quote-before-doctype-public-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = BOGUS_DOCTYPE_STATE;
       return TOKENIZER_STATUS_RECONSUME;
@@ -1620,7 +1630,7 @@ after_doctype_public_keyword_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-before_doctype_public_id_state(struct tokenizer *tokenizer, char32_t c)
+before_doctype_public_id_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
@@ -1637,20 +1647,20 @@ before_doctype_public_id_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '>':
-      tokenizer_error(tokenizer, "missing-doctype-public-identifier");
+      tokenizer->error("missing-doctype-public-identifier");
       tokenizer->doctype.force_quirks_flag = false;
       tokenizer->state = DATA_STATE;
       emit_doctype(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = false;
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
-      tokenizer_error(tokenizer, "missing-quote-before-doctype-public-identifier");
+      tokenizer->error("missing-quote-before-doctype-public-identifier");
       tokenizer->doctype.force_quirks_flag = false;
       tokenizer->state = BOGUS_DOCTYPE_STATE;
       return TOKENIZER_STATUS_RECONSUME;
@@ -1659,7 +1669,7 @@ before_doctype_public_id_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-doctype_public_id_double_quoted_state(struct tokenizer *tokenizer, char32_t c)
+doctype_public_id_double_quoted_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\"':
@@ -1667,22 +1677,22 @@ doctype_public_id_double_quoted_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       infra_string_put_unicode(tokenizer->doctype.public_id, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case '>':
-      tokenizer_error(tokenizer, "abrupt-doctype-public-identifier");
+      tokenizer->error("abrupt-doctype-public-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
       emit_doctype(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
       infra_string_put_unicode(tokenizer->doctype.public_id, c);
@@ -1692,7 +1702,7 @@ doctype_public_id_double_quoted_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-doctype_public_id_single_quoted_state(struct tokenizer *tokenizer, char32_t c)
+doctype_public_id_single_quoted_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\'':
@@ -1700,21 +1710,21 @@ doctype_public_id_single_quoted_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       infra_string_put_unicode(tokenizer->doctype.public_id, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case '>':
-      tokenizer_error(tokenizer, "abrupt-doctype-public-identifier");
+      tokenizer->error("abrupt-doctype-public-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
       infra_string_put_unicode(tokenizer->doctype.public_id, c);
@@ -1723,7 +1733,7 @@ doctype_public_id_single_quoted_state(struct tokenizer *tokenizer, char32_t c)
 }
 
 static enum tokenizer_status
-after_doctype_public_id_state(struct tokenizer *tokenizer, char32_t c)
+after_doctype_public_id_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
@@ -1736,26 +1746,26 @@ after_doctype_public_id_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\"':
-      tokenizer_error(tokenizer,
+      tokenizer->error(
        "missing-whitespace-between-doctype-public-and-system-identifiers");
       tokenizer->doctype.system_id_missing = false;
       tokenizer->state = DOCTYPE_SYSTEM_ID_DOUBLE_QUOTED_STATE;
       return TOKENIZER_STATUS_OK;
 
     case '\'':
-      tokenizer_error(tokenizer,
+      tokenizer->error(
        "missing-whitespace-between-doctype-public-and-system-identifiers");
       tokenizer->doctype.system_id_missing = false;
       tokenizer->state = DOCTYPE_SYSTEM_ID_SINGLE_QUOTED_STATE;
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
     default:
-      tokenizer_error(tokenizer, "missing-quote-before-doctype-system-identifier");
+      tokenizer->error("missing-quote-before-doctype-system-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = BOGUS_DOCTYPE_STATE;
       return TOKENIZER_STATUS_RECONSUME;
@@ -1764,7 +1774,7 @@ after_doctype_public_id_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-between_doctype_public_system_ids_state(struct tokenizer *tokenizer, char32_t c)
+between_doctype_public_system_ids_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
@@ -1785,14 +1795,14 @@ between_doctype_public_system_ids_state(struct tokenizer *tokenizer, char32_t c)
       tokenizer->state = DOCTYPE_SYSTEM_ID_SINGLE_QUOTED_STATE;
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
-      tokenizer_error(tokenizer, "missing-quote-before-doctype-system-identifier");
+      tokenizer->error("missing-quote-before-doctype-system-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = BOGUS_DOCTYPE_STATE;
       return TOKENIZER_STATUS_RECONSUME;
@@ -1801,7 +1811,7 @@ between_doctype_public_system_ids_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-after_doctype_system_keyword_state(struct tokenizer *tokenizer, char32_t c)
+after_doctype_system_keyword_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
@@ -1809,32 +1819,32 @@ after_doctype_system_keyword_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\"':
-      tokenizer_error(tokenizer, "missing-whitespace-after-doctype-system-keyword");
+      tokenizer->error("missing-whitespace-after-doctype-system-keyword");
       tokenizer->doctype.system_id_missing = false;
       tokenizer->state = DOCTYPE_SYSTEM_ID_DOUBLE_QUOTED_STATE;
       return TOKENIZER_STATUS_OK;
 
     case '\'':
-      tokenizer_error(tokenizer, "missing-whitespace-after-doctype-system-keyword");
+      tokenizer->error("missing-whitespace-after-doctype-system-keyword");
       tokenizer->doctype.system_id_missing = false;
       tokenizer->state = DOCTYPE_SYSTEM_ID_SINGLE_QUOTED_STATE;
       return TOKENIZER_STATUS_OK;
 
     case '>':
-      tokenizer_error(tokenizer, "missing-doctype-system-identifier");
+      tokenizer->error("missing-doctype-system-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
       emit_doctype(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
-      tokenizer_error(tokenizer, "missing-quote-before-doctype-system-identifier");
+      tokenizer->error("missing-quote-before-doctype-system-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = BOGUS_DOCTYPE_STATE;
       return TOKENIZER_STATUS_RECONSUME;
@@ -1843,7 +1853,7 @@ after_doctype_system_keyword_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-before_doctype_system_id_state(struct tokenizer *tokenizer, char32_t c)
+before_doctype_system_id_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
@@ -1860,20 +1870,20 @@ before_doctype_system_id_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '>':
-      tokenizer_error(tokenizer, "missing-doctype-system-identifier");
+      tokenizer->error("missing-doctype-system-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
       emit_doctype(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
-      tokenizer_error(tokenizer, "missing-quote-before-doctype-system-identifier");
+      tokenizer->error("missing-quote-before-doctype-system-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = BOGUS_DOCTYPE_STATE;
       return TOKENIZER_STATUS_RECONSUME;
@@ -1882,7 +1892,7 @@ before_doctype_system_id_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-doctype_system_id_double_quoted_state(struct tokenizer *tokenizer, char32_t c)
+doctype_system_id_double_quoted_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\"':
@@ -1890,22 +1900,22 @@ doctype_system_id_double_quoted_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       infra_string_put_unicode(tokenizer->doctype.system_id, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case '>':
-      tokenizer_error(tokenizer, "abrupt-doctype-system-identifier");
+      tokenizer->error("abrupt-doctype-system-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
       emit_doctype(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
       infra_string_put_unicode(tokenizer->doctype.system_id, c);
@@ -1915,7 +1925,7 @@ doctype_system_id_double_quoted_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-doctype_system_id_single_quoted_state(struct tokenizer *tokenizer, char32_t c)
+doctype_system_id_single_quoted_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\'':
@@ -1923,22 +1933,22 @@ doctype_system_id_single_quoted_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       infra_string_put_unicode(tokenizer->doctype.system_id, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case '>':
-      tokenizer_error(tokenizer, "abrupt-doctype-system-identifier");
+      tokenizer->error("abrupt-doctype-system-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
       emit_doctype(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
       infra_string_put_unicode(tokenizer->doctype.system_id, c);
@@ -1948,7 +1958,7 @@ doctype_system_id_single_quoted_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-after_doctype_system_id_state(struct tokenizer *tokenizer, char32_t c)
+after_doctype_system_id_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
@@ -1959,14 +1969,14 @@ after_doctype_system_id_state(struct tokenizer *tokenizer, char32_t c)
       emit_doctype(tokenizer);
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-doctype");
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
-      tokenizer_error(tokenizer, "unexpected-character-after-doctype-system-identifier");
+      tokenizer->error("unexpected-character-after-doctype-system-identifier");
       tokenizer->state = BOGUS_DOCTYPE_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -1974,7 +1984,7 @@ after_doctype_system_id_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-bogus_doctype_state(struct tokenizer *tokenizer, char32_t c)
+bogus_doctype_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '>':
@@ -1983,12 +1993,12 @@ bogus_doctype_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '\0':
-      tokenizer_error(tokenizer, "unexpected-null-character");
+      tokenizer->error("unexpected-null-character");
       return TOKENIZER_STATUS_OK;
 
-    case -1:
+    case static_cast<char32_t>(-1):
       emit_doctype(tokenizer);
-      return emit_eof(tokenizer);
+      return tokenizer->emit_eof();
 
     default:
       return TOKENIZER_STATUS_OK;
@@ -1997,26 +2007,26 @@ bogus_doctype_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-cdata_section_state(struct tokenizer *tokenizer, char32_t c)
+cdata_section_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case ']':
       tokenizer->state = CDATA_SECTION_BRACKET_STATE;
       return TOKENIZER_STATUS_OK;
 
-    case -1:
-      tokenizer_error(tokenizer, "eof-in-cdata");
-      return emit_eof(tokenizer);
+    case static_cast<char32_t>(-1):
+      tokenizer->error("eof-in-cdata");
+      return tokenizer->emit_eof();
 
     default:
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
       return TOKENIZER_STATUS_OK;
   }
 }
 
 
 static enum tokenizer_status
-cdata_section_bracket_state(struct tokenizer *tokenizer, char32_t c)
+cdata_section_bracket_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case ']':
@@ -2024,7 +2034,7 @@ cdata_section_bracket_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     default:
-      emit_character(tokenizer, ']');
+      tokenizer->emit_character(']');
       tokenizer->state = CDATA_SECTION_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -2032,11 +2042,11 @@ cdata_section_bracket_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-cdata_section_end_state(struct tokenizer *tokenizer, char32_t c)
+cdata_section_end_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case ']':
-      emit_character(tokenizer, ']');
+      tokenizer->emit_character(']');
       return TOKENIZER_STATUS_OK;
 
     case '>':
@@ -2044,8 +2054,8 @@ cdata_section_end_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     default:
-      emit_character(tokenizer, ']');
-      emit_character(tokenizer, ']');
+      tokenizer->emit_character(']');
+      tokenizer->emit_character(']');
       tokenizer->state = CDATA_SECTION_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -2053,7 +2063,7 @@ cdata_section_end_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-char_ref_state(struct tokenizer *tokenizer, char32_t c)
+char_ref_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alnum(c)) {
     tokenizer->state = NAMED_CHAR_REF_STATE;
@@ -2074,10 +2084,10 @@ char_ref_state(struct tokenizer *tokenizer, char32_t c)
 }
 
 
-#include "named_entities.c"
+#include "./named_entities.cc"
 
 static enum tokenizer_status
-named_char_ref_state(struct tokenizer *tokenizer, char32_t c)
+named_char_ref_state(Tokenizer *tokenizer, char32_t c)
 {
   (void) c;
 
@@ -2118,7 +2128,7 @@ named_char_ref_state(struct tokenizer *tokenizer, char32_t c)
         /* "regular" case */
 
         if (tokenizer->input.p[-1] != ';')
-          tokenizer_error(tokenizer, "missing-semicolon-after-character-reference");
+          tokenizer->error("missing-semicolon-after-character-reference");
 
         infra_string_zero(tokenizer->tmpbuf);
         infra_string_put_chunk(tokenizer->tmpbuf,
@@ -2142,19 +2152,19 @@ named_char_ref_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-ambiguous_ampersand_state(struct tokenizer *tokenizer, char32_t c)
+ambiguous_ampersand_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alnum(c)) {
     if (char_ref_in_attr(tokenizer))
       0; // infra_string_put_char(tokenizer->attr, c);
     else
-      emit_character(tokenizer, c);
+      tokenizer->emit_character(c);
     return TOKENIZER_STATUS_OK;
   }
 
   switch (c) {
     case ';':
-      tokenizer_error(tokenizer, "unknown-named-character-reference");
+      tokenizer->error("unknown-named-character-reference");
       tokenizer->state = tokenizer->ret_state;
       return TOKENIZER_STATUS_RECONSUME;
 
@@ -2166,7 +2176,7 @@ ambiguous_ampersand_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-numeric_char_ref_state(struct tokenizer *tokenizer, char32_t c)
+numeric_char_ref_state(Tokenizer *tokenizer, char32_t c)
 {
   tokenizer->char_ref = 0;
 
@@ -2184,7 +2194,7 @@ numeric_char_ref_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-hex_char_ref_start_state(struct tokenizer *tokenizer, char32_t c)
+hex_char_ref_start_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_xdigit(c)) {
     tokenizer->state = HEX_CHAR_REF_STATE;
@@ -2192,7 +2202,7 @@ hex_char_ref_start_state(struct tokenizer *tokenizer, char32_t c)
   }
 
   {
-    tokenizer_error(tokenizer, "absence-of-digits-in-numeric-character-reference");
+    tokenizer->error("absence-of-digits-in-numeric-character-reference");
     /* XXX flush */
     tokenizer->state = tokenizer->ret_state;
     return TOKENIZER_STATUS_RECONSUME;
@@ -2201,7 +2211,7 @@ hex_char_ref_start_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-dec_char_ref_start_state(struct tokenizer *tokenizer, char32_t c)
+dec_char_ref_start_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_digit(c)) {
     tokenizer->state = DEC_CHAR_REF_STATE;
@@ -2209,7 +2219,7 @@ dec_char_ref_start_state(struct tokenizer *tokenizer, char32_t c)
   }
 
   {
-    tokenizer_error(tokenizer, "absence-of-digits-in-numeric-character-reference");
+    tokenizer->error("absence-of-digits-in-numeric-character-reference");
     /* XXX flush */
     tokenizer->state = tokenizer->ret_state;
     return TOKENIZER_STATUS_RECONSUME;
@@ -2218,7 +2228,7 @@ dec_char_ref_start_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-hex_char_ref_state(struct tokenizer *tokenizer, char32_t c)
+hex_char_ref_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_digit(c)) {
     tokenizer->char_ref <<= 4;
@@ -2244,7 +2254,7 @@ hex_char_ref_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_RECONSUME;
 
     default:
-      tokenizer_error(tokenizer, "missing-semicolon-after-character-reference");
+      tokenizer->error("missing-semicolon-after-character-reference");
       tokenizer->state = NUMERIC_CHAR_REF_END_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -2252,7 +2262,7 @@ hex_char_ref_state(struct tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-dec_char_ref_state(struct tokenizer *tokenizer, char32_t c)
+dec_char_ref_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_digit(c)) {
     tokenizer->char_ref *= 10;
@@ -2266,7 +2276,7 @@ dec_char_ref_state(struct tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     default:
-      tokenizer_error(tokenizer, "missing-semicolon-after-character-reference");
+      tokenizer->error("missing-semicolon-after-character-reference");
       tokenizer->state = NUMERIC_CHAR_REF_END_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -2304,20 +2314,20 @@ static const char32_t k_numeric_subst[] = {
 
 
 static enum tokenizer_status
-numeric_char_ref_end_state(struct tokenizer *tokenizer, char32_t c)
+numeric_char_ref_end_state(Tokenizer *tokenizer, char32_t c)
 {
   (void) c;
 
   char32_t code;
 
   if (tokenizer->char_ref > 0x10FFFF) {
-    tokenizer_error(tokenizer, "character-reference-outside-of-unicode-range");
+    tokenizer->error("character-reference-outside-of-unicode-range");
     tokenizer->char_ref = 0xFFFD;
   }
   code = tokenizer->char_ref;
 
   if (code == 0x00) {
-    tokenizer_error(tokenizer, "null-character-reference");
+    tokenizer->error("null-character-reference");
     code = 0xFFFD;
   } else if (unicode_is_surrogate(code)) {
     /* XXX */
