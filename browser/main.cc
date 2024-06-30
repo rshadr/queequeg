@@ -9,6 +9,8 @@
 #include "dom/core/document.hh"
 #include "dom/core/element.hh"
 
+#include "html_parser/parser.hh"
+
 
 [[noreturn]] static void die(char const *errstr, ...);
 [[noreturn]] static void usage(char const *argv0);
@@ -60,6 +62,10 @@ main(int argc, char *argv[])
 
   close(fd);
   madvise(file_data, file_size, MADV_SEQUENTIAL);
+
+  DOM_Document document;
+
+  html_parse_document(&document, file_data, file_size);
 
   if (munmap(file_data, file_size) == -1)
     die("error: couldn't unmap file '%s'\n", file_path);

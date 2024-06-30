@@ -11,14 +11,22 @@
  * during compilation.
  *
  */
+#include <unordered_map>
+
 #include <uchar.h>
+#include <stdio.h>
 
 #define INFRA_SHORT_NAMES
+#include <infra/util.h>
 #include <infra/ascii.h>
 #include <infra/unicode.h>
 #include <infra/string.h>
 
 #include "html_parser/common.hh"
+
+
+#define S(cstring) \
+  (cstring), sizeof (cstring) - 1
 
 
 static enum tokenizer_status
@@ -147,7 +155,7 @@ static enum tokenizer_status
 tag_open_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alpha(c)) {
-    create_start_tag(tokenizer);
+    tokenizer->create_start_tag();
     tokenizer->state = TAG_NAME_STATE;
     return TOKENIZER_STATUS_RECONSUME;
   }
@@ -185,7 +193,7 @@ static enum tokenizer_status
 end_tag_open_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alpha(c)) {
-    create_end_tag(tokenizer);
+    tokenizer->create_end_tag();
     tokenizer->state = TAG_NAME_STATE;
     return TOKENIZER_STATUS_RECONSUME;
   }
@@ -230,7 +238,7 @@ tag_name_state(Tokenizer *tokenizer, char32_t c)
 
     case '>':
       tokenizer->state = DATA_STATE;
-      emit_tag(tokenizer);
+      tokenizer->emit_current_tag();
       return TOKENIZER_STATUS_OK;
 
     case '\0':
@@ -270,7 +278,7 @@ static enum tokenizer_status
 rcdata_end_tag_open_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alpha(c)) {
-    create_end_tag(tokenizer);
+    tokenizer->create_end_tag();
     tokenizer->state = RCDATA_END_TAG_NAME_STATE;
     return TOKENIZER_STATUS_RECONSUME;
   }
@@ -301,21 +309,21 @@ rcdata_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
 
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
-      if (appropriate_end_tag(tokenizer)) {
+      if (tokenizer->have_appropriate_end_tag()) {
         tokenizer->state = BEFORE_ATTR_NAME_STATE;
         return TOKENIZER_STATUS_OK;
       } else goto anything_else;
 
     case '/':
-      if (appropriate_end_tag(tokenizer)) {
+      if (tokenizer->have_appropriate_end_tag()) {
         tokenizer->state = SELF_CLOSING_START_TAG_STATE;
         return TOKENIZER_STATUS_OK;
       } else goto anything_else;
 
     case '>':
-      if (appropriate_end_tag(tokenizer)) {
+      if (tokenizer->have_appropriate_end_tag()) {
         tokenizer->state = DATA_STATE;
-        emit_tag(tokenizer);
+        tokenizer->emit_current_tag();
         return TOKENIZER_STATUS_OK;
       } else goto anything_else;
 
@@ -351,7 +359,7 @@ static enum tokenizer_status
 rawtext_end_tag_open_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alpha(c)) {
-    create_end_tag(tokenizer);
+    tokenizer->create_end_tag();
     tokenizer->state = RAWTEXT_END_TAG_NAME_STATE;
     return TOKENIZER_STATUS_OK;
   }
@@ -381,21 +389,21 @@ rawtext_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
 
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
-      if (appropriate_end_tag(tokenizer)) {
+      if (tokenizer->have_appropriate_end_tag()) {
         tokenizer->state = BEFORE_ATTR_NAME_STATE;
         return TOKENIZER_STATUS_OK;;
       } else goto anything_else;
 
     case '/':
-      if (appropriate_end_tag(tokenizer)) {
+      if (tokenizer->have_appropriate_end_tag()) {
         tokenizer->state = SELF_CLOSING_START_TAG_STATE;
         return TOKENIZER_STATUS_OK;;
       } else goto anything_else;
 
     case '>':
-      if (appropriate_end_tag(tokenizer)) {
+      if (tokenizer->have_appropriate_end_tag()) {
         tokenizer->state = DATA_STATE;
-        emit_tag(tokenizer);
+        tokenizer->emit_current_tag();
         return TOKENIZER_STATUS_OK;
       } else goto anything_else;
 
@@ -437,7 +445,7 @@ static enum tokenizer_status
 script_end_tag_open_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alpha(c)) {
-    create_end_tag(tokenizer);
+    tokenizer->create_end_tag();
     tokenizer->state = SCRIPT_END_TAG_NAME_STATE;
     return TOKENIZER_STATUS_RECONSUME;
   }
@@ -468,21 +476,21 @@ script_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
 
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
-      if (appropriate_end_tag(tokenizer)) {
+      if (tokenizer->have_appropriate_end_tag()) {
         tokenizer->state = BEFORE_ATTR_NAME_STATE;
         return TOKENIZER_STATUS_OK;
       } else goto anything_else;
 
     case '/':
-      if (appropriate_end_tag(tokenizer)) {
+      if (tokenizer->have_appropriate_end_tag()) {
         tokenizer->state = SELF_CLOSING_START_TAG_STATE;
         return TOKENIZER_STATUS_OK;
       } else goto anything_else;
 
     case '>':
-      if (appropriate_end_tag(tokenizer)) {
+      if (tokenizer->have_appropriate_end_tag()) {
         tokenizer->state = DATA_STATE;
-        emit_tag(tokenizer);
+        tokenizer->emit_current_tag();
         return TOKENIZER_STATUS_OK;
       } else goto anything_else;
 
@@ -652,7 +660,7 @@ static enum tokenizer_status
 script_escaped_end_tag_open_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alpha(c)) {
-    create_end_tag(tokenizer);
+    tokenizer->create_end_tag();
     tokenizer->state = SCRIPT_ESCAPED_END_TAG_NAME_STATE;
     return TOKENIZER_STATUS_RECONSUME;
   }
@@ -683,21 +691,21 @@ script_escaped_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
 
   switch (c) {
     case '\t': case '\n': case '\f': case ' ':
-      if (appropriate_end_tag(tokenizer)) {
+      if (tokenizer->have_appropriate_end_tag()) {
         tokenizer->state = BEFORE_ATTR_NAME_STATE;
         return TOKENIZER_STATUS_OK;
       } else goto anything_else;
 
     case '/':
-      if (appropriate_end_tag(tokenizer)) {
+      if (tokenizer->have_appropriate_end_tag()) {
         tokenizer->state = SELF_CLOSING_START_TAG_STATE;
         return TOKENIZER_STATUS_OK;
       } else goto anything_else;
 
     case '>':
-      if (appropriate_end_tag(tokenizer)) {
+      if (tokenizer->have_appropriate_end_tag()) {
         tokenizer->state = DATA_STATE;
-        emit_tag(tokenizer);
+        tokenizer->emit_current_tag();
         return TOKENIZER_STATUS_OK;
       } else goto anything_else;
 
@@ -966,7 +974,7 @@ after_attr_name_state(Tokenizer *tokenizer, char32_t c)
 
     case '>':
       tokenizer->state = DATA_STATE;
-      emit_tag(tokenizer);
+      tokenizer->emit_current_tag();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
@@ -999,7 +1007,7 @@ before_attr_value_state(Tokenizer *tokenizer, char32_t c)
     case '>':
       tokenizer->error("missing-attribute-value");
       tokenizer->state = DATA_STATE;
-      emit_tag(tokenizer);
+      tokenizer->emit_current_tag();
       return TOKENIZER_STATUS_OK;
 
     default:
@@ -1081,7 +1089,7 @@ attr_value_unquoted_state(Tokenizer *tokenizer, char32_t c)
 
     case '>':
       tokenizer->state = DATA_STATE;
-      emit_tag(tokenizer);
+      tokenizer->emit_current_tag();
       return TOKENIZER_STATUS_OK;
 
     case '\0':
@@ -1119,7 +1127,7 @@ after_attr_value_quoted_state(Tokenizer *tokenizer, char32_t c)
 
     case '>':
       tokenizer->state = DATA_STATE;
-      emit_tag(tokenizer);
+      tokenizer->emit_current_tag();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
@@ -1141,7 +1149,7 @@ self_closing_start_tag_state(Tokenizer *tokenizer, char32_t c)
     case '>':
       tokenizer->tag.self_closing_flag = true;
       tokenizer->state = DATA_STATE;
-      emit_tag(tokenizer);
+      tokenizer->emit_current_tag();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
@@ -1162,11 +1170,11 @@ bogus_comment_state(Tokenizer *tokenizer, char32_t c)
   switch (c) {
     case '>':
       tokenizer->state = DATA_STATE;
-      emit_comment(tokenizer);
+      tokenizer->emit_current_comment();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
-      emit_comment(tokenizer);
+      tokenizer->emit_current_comment();
       return tokenizer->emit_eof();
 
     case '\0':
@@ -1186,21 +1194,21 @@ markup_decl_open_state(Tokenizer *tokenizer, char32_t c)
 {
   (void) c;
 
-  if (tokenizer_match(tokenizer, S("--"))) {
+  if (tokenizer->match(S("--"))) {
     tokenizer->create_comment();
     tokenizer->state = COMMENT_START_STATE;
     return TOKENIZER_STATUS_OK;
   }
 
-  if (tokenizer_matchcase(tokenizer, S("DOCTYPE"))) {
+  if (tokenizer->match_insensitive(S("DOCTYPE"))) {
     tokenizer->state = DOCTYPE_STATE;
     return TOKENIZER_STATUS_OK;
   }
 
-  if (tokenizer_match(tokenizer, S("[CDATA["))) {
-    struct dom_element const *node = adjusted_current_node(tokenizer->treebuilder);
+  if (tokenizer->match(S("[CDATA["))) {
+    DOM_Element const *node = tokenizer->treebuilder->adjusted_current_node();
 
-    if (node != NULL && node->namespace != INFRA_NAMESPACE_HTML) {
+    if (node != NULL && node->name_space != INFRA_NAMESPACE_HTML) {
       tokenizer->state = CDATA_SECTION_STATE;
       return TOKENIZER_STATUS_OK;
     }
@@ -1231,7 +1239,7 @@ comment_start_state(Tokenizer *tokenizer, char32_t c)
     case '>':
       tokenizer->error("abrupt-closing-of-empty-comment");
       tokenizer->state = DATA_STATE;
-      emit_comment(tokenizer);
+      tokenizer->emit_current_comment();
       return TOKENIZER_STATUS_OK;
 
     default:
@@ -1252,12 +1260,12 @@ comment_start_dash_state(Tokenizer *tokenizer, char32_t c)
     case '>':
       tokenizer->error("abrupt-closing-of-empty-comment");
       tokenizer->state = DATA_STATE;
-      emit_comment(tokenizer);
+      tokenizer->emit_current_comment();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-comment");
-      emit_comment(tokenizer);
+      tokenizer->emit_current_comment();
       return TOKENIZER_STATUS_OK;
 
     default:
@@ -1373,7 +1381,7 @@ comment_end_dash_state(Tokenizer *tokenizer, char32_t c)
 
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-comment");
-      emit_comment(tokenizer);
+      tokenizer->emit_current_comment();
       return tokenizer->emit_eof();
 
     default:
@@ -1390,7 +1398,7 @@ comment_end_state(Tokenizer *tokenizer, char32_t c)
   switch (c) {
     case '>':
       tokenizer->state = DATA_STATE;
-      emit_comment(tokenizer);
+      tokenizer->emit_current_comment();
       return TOKENIZER_STATUS_OK;
 
     case '!':
@@ -1403,7 +1411,7 @@ comment_end_state(Tokenizer *tokenizer, char32_t c)
 
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-comment");
-      emit_comment(tokenizer);
+      tokenizer->emit_current_comment();
       return tokenizer->emit_eof();
 
     default:
@@ -1426,12 +1434,12 @@ comment_end_bang_state(Tokenizer *tokenizer, char32_t c)
     case '>':
       tokenizer->error("incorrectly-closed-comment");
       tokenizer->state = DATA_STATE;
-      emit_comment(tokenizer);
+      tokenizer->emit_current_comment();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-comment");
-      emit_comment(tokenizer);
+      tokenizer->emit_current_comment();
       return tokenizer->emit_eof();
 
     default:
@@ -1471,7 +1479,7 @@ static enum tokenizer_status
 before_doctype_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
-    create_doctype(tokenizer);
+    tokenizer->create_doctype();
     infra_string_put_char(tokenizer->doctype.name, c|0x20);
     tokenizer->state = DOCTYPE_NAME_STATE;
     return TOKENIZER_STATUS_OK;
@@ -1483,28 +1491,28 @@ before_doctype_name_state(Tokenizer *tokenizer, char32_t c)
 
     case '\0':
       tokenizer->error("unexpected-null-character");
-      create_doctype(tokenizer);
+      tokenizer->create_doctype();
       infra_string_put_unicode(tokenizer->doctype.name, 0xFFFD);
       tokenizer->state = DOCTYPE_NAME_STATE;
       return TOKENIZER_STATUS_OK;
 
     case '>':
       tokenizer->error("missing-doctype-name-state");
-      create_doctype(tokenizer);
+      tokenizer->create_doctype();
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-doctype");
-      create_doctype(tokenizer);
+      tokenizer->create_doctype();
       tokenizer->doctype.force_quirks_flag = true;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return tokenizer->emit_eof();
 
     default:
-      create_doctype(tokenizer);
+      tokenizer->create_doctype();
       infra_string_put_unicode(tokenizer->doctype.name, c);
       tokenizer->state = DOCTYPE_NAME_STATE;
       return TOKENIZER_STATUS_OK;
@@ -1527,7 +1535,7 @@ doctype_name_state(Tokenizer *tokenizer, char32_t c)
 
     case '>':
       tokenizer->state = DATA_STATE;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return TOKENIZER_STATUS_OK;
 
     case '\0':
@@ -1538,7 +1546,7 @@ doctype_name_state(Tokenizer *tokenizer, char32_t c)
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return tokenizer->emit_eof();
 
     default:
@@ -1553,29 +1561,29 @@ after_doctype_name_state(Tokenizer *tokenizer, char32_t c)
 {
   (void) c;
 
-  if (tokenizer_matchcase(tokenizer, S("PUBLIC"))) {
+  if (tokenizer->match_insensitive(S("PUBLIC"))) {
     tokenizer->state = AFTER_DOCTYPE_PUBLIC_KEYWORD_STATE;
     return TOKENIZER_STATUS_OK;
   }
 
-  if (tokenizer_matchcase(tokenizer, S("SYSTEM"))) {
+  if (tokenizer->match_insensitive(S("SYSTEM"))) {
     tokenizer->state = AFTER_DOCTYPE_SYSTEM_KEYWORD_STATE;
     return TOKENIZER_STATUS_OK;
   }
 
-  switch ((c = tokenizer_getc(tokenizer))) {
+  switch (tokenizer->getchar()) {
     case '\t': case '\n': case '\f': case ' ':
       return TOKENIZER_STATUS_OK; 
 
     case '>':
       tokenizer->state = DATA_STATE;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return TOKENIZER_STATUS_OK; 
 
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return tokenizer->emit_eof();
 
     default:
@@ -1611,14 +1619,14 @@ after_doctype_public_keyword_state(Tokenizer *tokenizer, char32_t c)
       tokenizer->error("missing-doctype-public-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
-      emit_doctype(tokenizer);
-      return tokenizer->emit_eof(tokenizer);
+      tokenizer->emit_current_doctype();
+      return tokenizer->emit_eof();
 
     default:
       tokenizer->error("missing-quote-before-doctype-public-identifier");
@@ -1650,13 +1658,13 @@ before_doctype_public_id_state(Tokenizer *tokenizer, char32_t c)
       tokenizer->error("missing-doctype-public-identifier");
       tokenizer->doctype.force_quirks_flag = false;
       tokenizer->state = DATA_STATE;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = false;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return tokenizer->emit_eof();
 
     default:
@@ -1685,13 +1693,13 @@ doctype_public_id_double_quoted_state(Tokenizer *tokenizer, char32_t c)
       tokenizer->error("abrupt-doctype-public-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return tokenizer->emit_eof();
 
     default:
@@ -1723,7 +1731,7 @@ doctype_public_id_single_quoted_state(Tokenizer *tokenizer, char32_t c)
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return tokenizer->emit_eof();
 
     default:
@@ -1742,7 +1750,7 @@ after_doctype_public_id_state(Tokenizer *tokenizer, char32_t c)
 
     case '>':
       tokenizer->state = DATA_STATE;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return TOKENIZER_STATUS_OK;
 
     case '\"':
@@ -1762,7 +1770,7 @@ after_doctype_public_id_state(Tokenizer *tokenizer, char32_t c)
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return tokenizer->emit_eof();
     default:
       tokenizer->error("missing-quote-before-doctype-system-identifier");
@@ -1782,7 +1790,7 @@ between_doctype_public_system_ids_state(Tokenizer *tokenizer, char32_t c)
 
     case '>':
       tokenizer->state = DATA_STATE;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return TOKENIZER_STATUS_OK;
 
     case '\"':
@@ -1798,7 +1806,7 @@ between_doctype_public_system_ids_state(Tokenizer *tokenizer, char32_t c)
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return tokenizer->emit_eof();
 
     default:
@@ -1834,13 +1842,13 @@ after_doctype_system_keyword_state(Tokenizer *tokenizer, char32_t c)
       tokenizer->error("missing-doctype-system-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return tokenizer->emit_eof();
 
     default:
@@ -1873,13 +1881,13 @@ before_doctype_system_id_state(Tokenizer *tokenizer, char32_t c)
       tokenizer->error("missing-doctype-system-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return tokenizer->emit_eof();
 
     default:
@@ -1908,13 +1916,13 @@ doctype_system_id_double_quoted_state(Tokenizer *tokenizer, char32_t c)
       tokenizer->error("abrupt-doctype-system-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return tokenizer->emit_eof();
 
     default:
@@ -1941,13 +1949,13 @@ doctype_system_id_single_quoted_state(Tokenizer *tokenizer, char32_t c)
       tokenizer->error("abrupt-doctype-system-identifier");
       tokenizer->doctype.force_quirks_flag = true;
       tokenizer->state = DATA_STATE;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return tokenizer->emit_eof();
 
     default:
@@ -1966,13 +1974,13 @@ after_doctype_system_id_state(Tokenizer *tokenizer, char32_t c)
 
     case '>':
       tokenizer->state = DATA_STATE;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
       tokenizer->error("eof-in-doctype");
       tokenizer->doctype.force_quirks_flag = true;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return tokenizer->emit_eof();
 
     default:
@@ -1989,7 +1997,7 @@ bogus_doctype_state(Tokenizer *tokenizer, char32_t c)
   switch (c) {
     case '>':
       tokenizer->state = DATA_STATE;
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return TOKENIZER_STATUS_OK;
 
     case '\0':
@@ -1997,7 +2005,7 @@ bogus_doctype_state(Tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
-      emit_doctype(tokenizer);
+      tokenizer->emit_current_doctype();
       return tokenizer->emit_eof();
 
     default:
@@ -2093,9 +2101,9 @@ named_char_ref_state(Tokenizer *tokenizer, char32_t c)
 
   char const *p = tokenizer->input.p - 2;
   /* ^ skipped '&' and c; works because c is always ASCII */
-  size_t const left = tokenizer->input.end - p;
+  const size_t left = tokenizer->input.end - p;
 
-  for (size_t i = 0; i < countof(k_named_char_refs_); i++)
+  for (size_t i = 0; i < INFRA_COUNTOF(k_named_char_refs_); i++)
   {
     size_t entlen = k_named_char_refs_[i].name_len;
 
@@ -2111,7 +2119,7 @@ named_char_ref_state(Tokenizer *tokenizer, char32_t c)
         k_named_char_refs_[i].name,
         k_named_char_refs_[i].name_len);
 
-      if (char_ref_in_attr(tokenizer)
+      if (tokenizer->char_ref_in_attr()
        && (tokenizer->input.p[-1] != ';')
        && ((tokenizer->input.p[0] == '=')
         || ascii_is_alnum(tokenizer->input.p[0])))
@@ -2155,7 +2163,7 @@ static enum tokenizer_status
 ambiguous_ampersand_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alnum(c)) {
-    if (char_ref_in_attr(tokenizer))
+    if (tokenizer->char_ref_in_attr())
       0; // infra_string_put_char(tokenizer->attr, c);
     else
       tokenizer->emit_character(c);
@@ -2283,6 +2291,7 @@ dec_char_ref_state(Tokenizer *tokenizer, char32_t c)
 }
 
 
+#if 0
 static const char32_t k_numeric_subst[] = {
   [0x80] = 0x20AC, /* EURO SIGN */
   [0x82] = 0x201A, /* SINGLE LOW-9 QUOTATION MARK */
@@ -2311,12 +2320,42 @@ static const char32_t k_numeric_subst[] = {
   [0x9E] = 0x017E, /* LATIN SMALL LETTER W WITH CARON */
   [0x9F] = 0x0178, /* LATIN CAPITAL LETTERY WITH DIARESIS */
 };
+#endif
+
+static const std::unordered_map<char32_t, char32_t> k_numeric_subst = {
+  { 0x80, 0x20AC }, /* EURO SIGN */
+  { 0x82, 0x201A }, /* SINGLE LOW-9 QUOTATION MARK */
+  { 0x83, 0x0192 }, /* LATIN SMALL LETTER F WITH HOOK */
+  { 0x84, 0x201E }, /* DOUBLE LOW-9 QUOTATION MARK */
+  { 0x85, 0x2026 }, /* HORIZONTAL ELLIPSIS */
+  { 0x86, 0x2020 }, /* DAGGER */
+  { 0x87, 0x2021 }, /* DOUBLE DAGGER */
+  { 0x88, 0x02C6 }, /* MODIFIER LETTER CIRCUMFLEX ACCENT */
+  { 0x89, 0x2030 }, /* PER MILLE SIGN */
+  { 0x8A, 0x0160 }, /* LATIN CAPITAL LETTER S WITH CARON */
+  { 0x8B, 0x2039 }, /* SINGLE LEFT-POINTING ANGLE QUOTATION MARK */
+  { 0x8C, 0x0152 }, /* LATIN CAPITAL LIGATURE OE */
+  { 0x8E, 0x017D }, /* LATIN SMALL LETTER Z WITH CARON */
+  { 0x91, 0x2018 }, /* LEFT SINGLE QUOTATION MARK */
+  { 0x92, 0x2019 }, /* RIGHT SINGLE QUOTATION MARK */
+  { 0x93, 0x201C }, /* LEFT DOUBLE QUOTATION MARK */
+  { 0x94, 0x201D }, /* RIGHT DOUBLE QUOTATION MARK */
+  { 0x95, 0x2022 }, /* BULLET */
+  { 0x96, 0x2013 }, /* EN DASH */
+  { 0x97, 0x2014 }, /* EM DASH */
+  { 0x98, 0x02DC }, /* SMALL TILDE */
+  { 0x9A, 0x0161 }, /* LATIN SMALL LETTER S WITH CARON */
+  { 0x9B, 0x203A }, /* SINGLE RIGHT-POINTING ANGLE QUOTATION MARK */
+  { 0x9C, 0x0153 }, /* LATIN SMALL LIGATURE OE */
+  { 0x9E, 0x017E }, /* LATIN SMALL LETTER W WITH CARON */
+  { 0x9F, 0x0178 }, /* LATIN CAPITAL LETTERY WITH DIARESIS */
+};
 
 
 static enum tokenizer_status
-numeric_char_ref_end_state(Tokenizer *tokenizer, char32_t c)
+numeric_char_ref_end_state(Tokenizer *tokenizer, char32_t ch)
 {
-  (void) c;
+  (void) ch;
 
   char32_t code;
 
@@ -2333,8 +2372,8 @@ numeric_char_ref_end_state(Tokenizer *tokenizer, char32_t c)
     /* XXX */
   } else if (unicode_is_noncharacter(code)) {
     /* XXX */
-  } else if (code >= 0x80 && code <= 0x9F && k_numeric_subst[code] != 0x00) {
-    code = k_numeric_subst[code];
+  } else if (k_numeric_subst.contains(code)) {
+    code = k_numeric_subst.at(code);
   }
 
   infra_string_zero(tokenizer->tmpbuf);
@@ -2344,4 +2383,174 @@ numeric_char_ref_end_state(Tokenizer *tokenizer, char32_t c)
   tokenizer->state = tokenizer->ret_state;
   return TOKENIZER_STATUS_OK;
 }
+
+
+#if 0
+Tokenizer::state_handler_cb_t k_html_tokenizer_states_[NUM_STATES] = {
+  [DATA_STATE] = data_state,
+  [RCDATA_STATE] = rcdata_state,
+  [RAWTEXT_STATE] = rawtext_state,
+  [SCRIPT_STATE] = script_state,
+  [PLAINTEXT_STATE] = plaintext_state,
+  [TAG_OPEN_STATE] = tag_open_state,
+  [END_TAG_OPEN_STATE] = end_tag_open_state,
+  [TAG_NAME_STATE] = tag_name_state,
+  [RCDATA_LT_STATE] = rcdata_lt_state,
+  [RCDATA_END_TAG_OPEN_STATE] = rcdata_end_tag_open_state,
+  [RCDATA_END_TAG_NAME_STATE] = rcdata_end_tag_name_state,
+  [RAWTEXT_LT_STATE] = rawtext_lt_state,
+  [RAWTEXT_END_TAG_OPEN_STATE] = rawtext_end_tag_open_state,
+  [RAWTEXT_END_TAG_NAME_STATE] = rawtext_end_tag_name_state,
+  [SCRIPT_LT_STATE] = script_lt_state,
+  [SCRIPT_END_TAG_OPEN_STATE] = script_end_tag_open_state,
+  [SCRIPT_END_TAG_NAME_STATE] = script_end_tag_name_state,
+  [SCRIPT_ESCAPE_START_STATE] = script_escape_start_state,
+  [SCRIPT_ESCAPE_START_DASH_STATE] = script_escape_start_dash_state,
+  [SCRIPT_ESCAPED_STATE] = script_escaped_state,
+  [SCRIPT_ESCAPED_DASH_STATE] = script_escaped_dash_state,
+  [SCRIPT_ESCAPED_DASH_DASH_STATE] = script_escaped_dash_dash_state,
+  [SCRIPT_ESCAPED_LT_STATE] = script_escaped_lt_state,
+  [SCRIPT_ESCAPED_END_TAG_OPEN_STATE] = script_escaped_end_tag_open_state,
+  [SCRIPT_ESCAPED_END_TAG_NAME_STATE] = script_escaped_end_tag_name_state,
+  [SCRIPT_DOUBLE_ESCAPE_START_STATE] = script_double_escape_start_state,
+  [SCRIPT_DOUBLE_ESCAPED_STATE] = script_double_escaped_state,
+  [SCRIPT_DOUBLE_ESCAPED_DASH_STATE] = script_double_escaped_dash_state,
+  [SCRIPT_DOUBLE_ESCAPED_DASH_DASH_STATE] = script_double_escaped_dash_dash_state,
+  [SCRIPT_DOUBLE_ESCAPED_LT_STATE] = script_double_escaped_lt_state,
+  [SCRIPT_DOUBLE_ESCAPE_END_STATE] = script_double_escape_end_state,
+  [BEFORE_ATTR_NAME_STATE] = before_attr_name_state,
+  [ATTR_NAME_STATE] = attr_name_state,
+  [AFTER_ATTR_NAME_STATE] = after_attr_name_state,
+  [BEFORE_ATTR_VALUE_STATE] = before_attr_value_state,
+  [ATTR_VALUE_DOUBLE_QUOTED_STATE] = attr_value_double_quoted_state,
+  [ATTR_VALUE_SINGLE_QUOTED_STATE] = attr_value_single_quoted_state,
+  [ATTR_VALUE_UNQUOTED_STATE] = attr_value_unquoted_state,
+  [AFTER_ATTR_VALUE_QUOTED_STATE] = after_attr_value_quoted_state,
+  [SELF_CLOSING_START_TAG_STATE] = self_closing_start_tag_state,
+  [BOGUS_COMMENT_STATE] = bogus_comment_state,
+  [MARKUP_DECL_OPEN_STATE] = markup_decl_open_state,
+  [COMMENT_START_STATE] = comment_start_state,
+  [COMMENT_START_DASH_STATE] = comment_start_dash_state,
+  [COMMENT_STATE] = comment_state,
+  [COMMENT_LT_STATE] = comment_lt_state,
+  [COMMENT_LT_BANG_STATE] = comment_lt_bang_state,
+  [COMMENT_LT_BANG_DASH_STATE] = comment_lt_bang_dash_state,
+  [COMMENT_LT_BANG_DASH_DASH_STATE] = comment_lt_bang_dash_dash_state,
+  [COMMENT_END_DASH_STATE] = comment_end_dash_state,
+  [COMMENT_END_STATE] = comment_end_state,
+  [COMMENT_END_BANG_STATE] = comment_end_bang_state,
+  [DOCTYPE_STATE] = doctype_state,
+  [BEFORE_DOCTYPE_NAME_STATE] = before_doctype_name_state,
+  [DOCTYPE_NAME_STATE] = doctype_name_state,
+  [AFTER_DOCTYPE_NAME_STATE] = after_doctype_name_state,
+  [AFTER_DOCTYPE_PUBLIC_KEYWORD_STATE] = after_doctype_public_keyword_state,
+  [BEFORE_DOCTYPE_PUBLIC_ID_STATE] = before_doctype_public_id_state,
+  [DOCTYPE_PUBLIC_ID_DOUBLE_QUOTED_STATE] = doctype_public_id_double_quoted_state,
+  [DOCTYPE_PUBLIC_ID_SINGLE_QUOTED_STATE] = doctype_public_id_single_quoted_state,
+  [AFTER_DOCTYPE_PUBLIC_ID_STATE] = after_doctype_public_id_state,
+  [BETWEEN_DOCTYPE_PUBLIC_SYSTEM_IDS_STATE] = between_doctype_public_system_ids_state,
+  [AFTER_DOCTYPE_SYSTEM_KEYWORD_STATE] = after_doctype_system_keyword_state,
+  [BEFORE_DOCTYPE_SYSTEM_ID_STATE] = before_doctype_system_id_state,
+  [DOCTYPE_SYSTEM_ID_DOUBLE_QUOTED_STATE] = doctype_system_id_double_quoted_state,
+  [DOCTYPE_SYSTEM_ID_SINGLE_QUOTED_STATE] = doctype_system_id_single_quoted_state,
+  [AFTER_DOCTYPE_SYSTEM_ID_STATE] = after_doctype_system_id_state,
+  [BOGUS_DOCTYPE_STATE] = bogus_doctype_state,
+  [CDATA_SECTION_STATE] = cdata_section_state,
+  [CDATA_SECTION_BRACKET_STATE] = cdata_section_bracket_state,
+  [CDATA_SECTION_END_STATE] = cdata_section_end_state,
+  [CHAR_REF_STATE] = char_ref_state,
+  [NAMED_CHAR_REF_STATE] = named_char_ref_state,
+  [AMBIGUOUS_AMPERSAND_STATE] = ambiguous_ampersand_state,
+  [NUMERIC_CHAR_REF_STATE] = numeric_char_ref_state,
+  [HEX_CHAR_REF_START_STATE] = hex_char_ref_start_state,
+  [DEC_CHAR_REF_START_STATE] = dec_char_ref_start_state,
+  [HEX_CHAR_REF_STATE] = hex_char_ref_state,
+  [DEC_CHAR_REF_STATE] = dec_char_ref_state,
+  [NUMERIC_CHAR_REF_END_STATE] = numeric_char_ref_end_state,
+};
+
+#endif
+
+const std::unordered_map<enum tokenizer_state, Tokenizer::state_handler_cb_t> Tokenizer::k_state_handlers_ = {
+  { DATA_STATE, data_state },
+  { RCDATA_STATE, rcdata_state },
+  { RAWTEXT_STATE, rawtext_state },
+  { SCRIPT_STATE, script_state },
+  { PLAINTEXT_STATE, plaintext_state },
+  { TAG_OPEN_STATE, tag_open_state },
+  { END_TAG_OPEN_STATE, end_tag_open_state },
+  { TAG_NAME_STATE, tag_name_state },
+  { RCDATA_LT_STATE, rcdata_lt_state },
+  { RCDATA_END_TAG_OPEN_STATE, rcdata_end_tag_open_state },
+  { RCDATA_END_TAG_NAME_STATE, rcdata_end_tag_name_state },
+  { RAWTEXT_LT_STATE, rawtext_lt_state },
+  { RAWTEXT_END_TAG_OPEN_STATE, rawtext_end_tag_open_state },
+  { RAWTEXT_END_TAG_NAME_STATE, rawtext_end_tag_name_state },
+  { SCRIPT_LT_STATE, script_lt_state },
+  { SCRIPT_END_TAG_OPEN_STATE, script_end_tag_open_state },
+  { SCRIPT_END_TAG_NAME_STATE, script_end_tag_name_state },
+  { SCRIPT_ESCAPE_START_STATE, script_escape_start_state },
+  { SCRIPT_ESCAPE_START_DASH_STATE, script_escape_start_dash_state },
+  { SCRIPT_ESCAPED_STATE, script_escaped_state },
+  { SCRIPT_ESCAPED_DASH_STATE, script_escaped_dash_state },
+  { SCRIPT_ESCAPED_DASH_DASH_STATE, script_escaped_dash_dash_state },
+  { SCRIPT_ESCAPED_LT_STATE, script_escaped_lt_state },
+  { SCRIPT_ESCAPED_END_TAG_OPEN_STATE, script_escaped_end_tag_open_state },
+  { SCRIPT_ESCAPED_END_TAG_NAME_STATE, script_escaped_end_tag_name_state },
+  { SCRIPT_DOUBLE_ESCAPE_START_STATE, script_double_escape_start_state },
+  { SCRIPT_DOUBLE_ESCAPED_STATE, script_double_escaped_state },
+  { SCRIPT_DOUBLE_ESCAPED_DASH_STATE, script_double_escaped_dash_state },
+  { SCRIPT_DOUBLE_ESCAPED_DASH_DASH_STATE, script_double_escaped_dash_dash_state },
+  { SCRIPT_DOUBLE_ESCAPED_LT_STATE, script_double_escaped_lt_state },
+  { SCRIPT_DOUBLE_ESCAPE_END_STATE, script_double_escape_end_state },
+  { BEFORE_ATTR_NAME_STATE, before_attr_name_state },
+  { ATTR_NAME_STATE, attr_name_state },
+  { AFTER_ATTR_NAME_STATE, after_attr_name_state },
+  { BEFORE_ATTR_VALUE_STATE, before_attr_value_state },
+  { ATTR_VALUE_DOUBLE_QUOTED_STATE, attr_value_double_quoted_state },
+  { ATTR_VALUE_SINGLE_QUOTED_STATE, attr_value_single_quoted_state },
+  { ATTR_VALUE_UNQUOTED_STATE, attr_value_unquoted_state },
+  { AFTER_ATTR_VALUE_QUOTED_STATE, after_attr_value_quoted_state },
+  { SELF_CLOSING_START_TAG_STATE, self_closing_start_tag_state },
+  { BOGUS_COMMENT_STATE, bogus_comment_state },
+  { MARKUP_DECL_OPEN_STATE, markup_decl_open_state },
+  { COMMENT_START_STATE, comment_start_state },
+  { COMMENT_START_DASH_STATE, comment_start_dash_state },
+  { COMMENT_STATE, comment_state },
+  { COMMENT_LT_STATE, comment_lt_state },
+  { COMMENT_LT_BANG_STATE, comment_lt_bang_state },
+  { COMMENT_LT_BANG_DASH_STATE, comment_lt_bang_dash_state },
+  { COMMENT_LT_BANG_DASH_DASH_STATE, comment_lt_bang_dash_dash_state },
+  { COMMENT_END_DASH_STATE, comment_end_dash_state },
+  { COMMENT_END_STATE, comment_end_state },
+  { COMMENT_END_BANG_STATE, comment_end_bang_state },
+  { DOCTYPE_STATE, doctype_state },
+  { BEFORE_DOCTYPE_NAME_STATE, before_doctype_name_state },
+  { DOCTYPE_NAME_STATE, doctype_name_state },
+  { AFTER_DOCTYPE_NAME_STATE, after_doctype_name_state },
+  { AFTER_DOCTYPE_PUBLIC_KEYWORD_STATE, after_doctype_public_keyword_state },
+  { BEFORE_DOCTYPE_PUBLIC_ID_STATE, before_doctype_public_id_state },
+  { DOCTYPE_PUBLIC_ID_DOUBLE_QUOTED_STATE, doctype_public_id_double_quoted_state },
+  { DOCTYPE_PUBLIC_ID_SINGLE_QUOTED_STATE, doctype_public_id_single_quoted_state },
+  { AFTER_DOCTYPE_PUBLIC_ID_STATE, after_doctype_public_id_state },
+  { BETWEEN_DOCTYPE_PUBLIC_SYSTEM_IDS_STATE, between_doctype_public_system_ids_state },
+  { AFTER_DOCTYPE_SYSTEM_KEYWORD_STATE, after_doctype_system_keyword_state },
+  { BEFORE_DOCTYPE_SYSTEM_ID_STATE, before_doctype_system_id_state },
+  { DOCTYPE_SYSTEM_ID_DOUBLE_QUOTED_STATE, doctype_system_id_double_quoted_state },
+  { DOCTYPE_SYSTEM_ID_SINGLE_QUOTED_STATE,  doctype_system_id_single_quoted_state },
+  { AFTER_DOCTYPE_SYSTEM_ID_STATE, after_doctype_system_id_state },
+  { BOGUS_DOCTYPE_STATE, bogus_doctype_state },
+  { CDATA_SECTION_STATE, cdata_section_state },
+  { CDATA_SECTION_BRACKET_STATE, cdata_section_bracket_state },
+  { CDATA_SECTION_END_STATE, cdata_section_end_state },
+  { CHAR_REF_STATE, char_ref_state },
+  { NAMED_CHAR_REF_STATE, named_char_ref_state },
+  { AMBIGUOUS_AMPERSAND_STATE, ambiguous_ampersand_state },
+  { NUMERIC_CHAR_REF_STATE, numeric_char_ref_state },
+  { HEX_CHAR_REF_START_STATE, hex_char_ref_start_state },
+  { DEC_CHAR_REF_START_STATE, dec_char_ref_start_state },
+  { HEX_CHAR_REF_STATE, hex_char_ref_state },
+  { DEC_CHAR_REF_STATE, dec_char_ref_state },
+  { NUMERIC_CHAR_REF_END_STATE, numeric_char_ref_end_state },
+};
 

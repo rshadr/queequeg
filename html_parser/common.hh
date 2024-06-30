@@ -1,10 +1,14 @@
 #ifndef _queequeg_html_parser_common_hh_
 #define _queequeg_html_parser_common_hh_
 
+#include <unordered_map>
+
 #include <stddef.h>
 #include <uchar.h>
 
 #include <infra/string.h>
+#include <infra/stack.h>
+#include <infra/namespace.h>
 
 #include "dom/core/node.hh"
 #include "dom/core/document.hh"
@@ -37,13 +41,18 @@ struct doctype_token {
 
   bool public_id_missing;
   bool system_id_missing;
-  bool force_quirks;
+  bool force_quirks_flag;
 };
 
 
 struct tag_token {
-  bool self_closing;
-  bool acknowledged_self_closing_;
+  InfraString *tagname;
+  InfraStack *attrs;
+  enum InfraNamespace name_space;
+  uint16_t local_name;
+
+  bool self_closing_flag;
+  bool acknowledged_self_closing;
 };
 
 
@@ -156,6 +165,8 @@ class Tokenizer {
       Tokenizer(char const *input, size_t input_len);
     ~Tokenizer();
 
+
+  public:
     /*
      * Handlers
      */
@@ -168,7 +179,11 @@ class Tokenizer {
 
     TreeBuilder *treebuilder;
 
+    struct doctype_token doctype;
+    struct tag_token tag;
+    InfraString *tmpbuf;
     InfraString *comment;
+    uintmax_t char_ref;
 
     enum tokenizer_state state;
     enum tokenizer_state ret_state;
@@ -178,15 +193,37 @@ class Tokenizer {
      * Methods
      */
     [[nodiscard]] char32_t getchar(void);
+    [[nodiscard]] bool match(char const *s, size_t slen);
+    [[nodiscard]] bool match_insensitive(char const *s, size_t slen);
     void error(char const *errstr);
 
+    bool have_appropriate_end_tag(void) const;
+
+    inline bool
+    char_ref_in_attr(void) const
+    {
+      return (this->ret_state == ATTR_VALUE_DOUBLE_QUOTED_STATE
+           || this->ret_state == ATTR_VALUE_SINGLE_QUOTED_STATE
+           || this->ret_state == ATTR_VALUE_UNQUOTED_STATE);
+    }
+
+    void create_doctype(void);
+    void create_start_tag(void);
+    void create_end_tag(void);
     void create_comment(void);
 
     void emit_character(char32_t ch);
+    void emit_current_doctype(void);
+    void emit_current_tag(void);
+    void emit_current_comment(void);
     [[nodiscard]] enum tokenizer_status emit_eof(void);
 
 
     void run(void);
+
+  private:
+    void create_tag_(enum token_type tag_type);
+    static const std::unordered_map<enum tokenizer_state, state_handler_cb_t> k_state_handlers_;
 };
 
 
@@ -226,6 +263,7 @@ class TreeBuilder {
       TreeBuilder(DOM_Document *document);
     ~TreeBuilder();
 
+
     Tokenizer *tokenizer;
 
     DOM_Document *document;
@@ -234,8 +272,8 @@ class TreeBuilder {
     DOM_Element *head;
     DOM_Element *form;
 
-    void **open_elements;
-    void **formatting_elements;
+    InfraStack *open_elements;
+    InfraStack *formatting_elements;
 
     enum insertion_mode mode;
     enum insertion_mode original_mode;
@@ -249,9 +287,26 @@ class TreeBuilder {
     } flags;
 
 
-    void insert_character(char32_t ch);
+    inline DOM_Element *
+    current_node(void) const
+    {
+      return static_cast<DOM_Element *>(infra_stack_peek(this->open_elements));
+    }
+
+
+    inline DOM_Element *
+    adjusted_current_node(void) const
+    {
+      if (this->context != NULL)
+        return this->context;
+
+      return this->current_node();
+    }
+
 
     void error(void);
+
+    void insert_character(char32_t ch);
 };
 
 
@@ -261,7 +316,7 @@ struct InsertionLocation {
 };
 
 
-extern Tokenizer::state_handler_cb_t k_tokenizer_states[NUM_STATES];
+extern Tokenizer::state_handler_cb_t k_html_tokenizer_states_[NUM_STATES];
 // extern TreeBuilder::insertion_mode_handler_cb_t k_insertion_modes[NUM_MODES];
 
 #endif /* !defined(_queequeg_html_parser_common_hh_) */

@@ -1,3 +1,9 @@
+/*
+ * Copyright 2024 Adrien Ricciardi
+ * This file is part of the queequeg distribution (https://github.com/rshadr/queequeg)
+ * See LICENSE for details
+ */
+
 #include <stddef.h>
 #include <stdio.h>
 
@@ -10,8 +16,12 @@
 
 Tokenizer::Tokenizer(char const *input, size_t input_len)
 {
+  this->state = DATA_STATE;
+
   this->input.p   = input;
   this->input.end = &input[input_len];
+
+  this->tmpbuf = infra_string_create();
 
   this->comment = infra_string_create();
 }
@@ -19,6 +29,8 @@ Tokenizer::Tokenizer(char const *input, size_t input_len)
 
 Tokenizer::~Tokenizer()
 {
+  infra_string_clearref(&this->tmpbuf);
+
   infra_string_clearref(&this->comment);
 }
 
@@ -31,6 +43,8 @@ Tokenizer::getchar(void)
   size_t read;
   char32_t ch = 0xFFFD;
 
+
+  printf("we're getting there\n");
 
   if (left > 0 && *this->input.p == '\0')
     /* libgrapheme was not designed for this, let us do it */
@@ -61,12 +75,63 @@ Tokenizer::getchar(void)
 }
 
 
+[[nodiscard]]
+bool
+Tokenizer::match(char const *s, size_t slen)
+{
+  (void) s;
+  (void) slen;
+  // ...
+  return true;
+}
+
+
+[[nodiscard]]
+bool
+Tokenizer::match_insensitive(char const *s, size_t slen)
+{
+  (void) s;
+  (void) slen;
+  // ...
+  return true;
+}
+
+
 void
 Tokenizer::error(char const *errstr)
 {
   fputs(errstr, stderr);
   fputc('\n', stderr);
   fflush(stderr);
+}
+
+
+bool
+Tokenizer::have_appropriate_end_tag(void) const
+{
+  // ...
+  return true;
+}
+
+
+void
+Tokenizer::create_doctype(void)
+{
+  // ...
+}
+
+
+void
+Tokenizer::create_start_tag(void)
+{
+  // ...
+}
+
+
+void
+Tokenizer::create_end_tag(void)
+{
+  // ...
 }
 
 
@@ -85,6 +150,27 @@ Tokenizer::emit_character(char32_t ch)
 }
 
 
+void
+Tokenizer::emit_current_doctype(void)
+{
+  // ...
+}
+
+
+void
+Tokenizer::emit_current_tag(void)
+{
+  // ...
+}
+
+
+void
+Tokenizer::emit_current_comment(void)
+{
+  // ...
+}
+
+
 [[nodiscard]]
 enum tokenizer_status
 Tokenizer::emit_eof(void)
@@ -98,6 +184,8 @@ void
 Tokenizer::run(void)
 {
   enum tokenizer_status status = TOKENIZER_STATUS_OK;
+
+  printf("hullo");
 
 
   while (status != TOKENIZER_STATUS_EOF) {
@@ -116,6 +204,8 @@ Tokenizer::run(void)
         break;
     }
 
+    do { status = Tokenizer::k_state_handlers_.at(this->state)(this, ch); }
+      while (status == TOKENIZER_STATUS_RECONSUME);
   }
 
 }
