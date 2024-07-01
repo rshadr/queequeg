@@ -5,9 +5,11 @@
  */
 
 #include <stddef.h>
+#include <string.h>
 #include <stdio.h>
 
 #include <grapheme.h>
+#include <infra/ascii.h>
 #include <infra/string.h>
 
 #include "html_parser/common.hh"
@@ -21,14 +23,19 @@ Tokenizer::Tokenizer(char const *input, size_t input_len)
   this->input.p   = input;
   this->input.end = &input[input_len];
 
-  this->tmpbuf = infra_string_create();
+  this->doctype = { };
+  this->tag = { };
 
+  this->tmpbuf = infra_string_create();
   this->comment = infra_string_create();
 }
 
 
 Tokenizer::~Tokenizer()
 {
+  this->destroy_doctype_();
+  this->destroy_tag_();
+
   infra_string_clearref(&this->tmpbuf);
 
   infra_string_clearref(&this->comment);
@@ -43,8 +50,6 @@ Tokenizer::getchar(void)
   size_t read;
   char32_t ch = 0xFFFD;
 
-
-  printf("we're getting there\n");
 
   if (left > 0 && *this->input.p == '\0')
     /* libgrapheme was not designed for this, let us do it */
@@ -77,12 +82,33 @@ Tokenizer::getchar(void)
 
 [[nodiscard]]
 bool
+Tokenizer::match_fn_(int (*cmp) (char const *, char const *, size_t),
+                     char const *s,
+                     size_t slen)
+{
+  size_t left = this->input.end - this->input.p;
+
+
+  if (left < slen)
+    return false;
+
+
+  if (!cmp(this->input.p, s, slen)) {
+    this->input.p += slen;
+    return true;
+  }
+
+
+  return false;
+
+}
+
+
+[[nodiscard]]
+bool
 Tokenizer::match(char const *s, size_t slen)
 {
-  (void) s;
-  (void) slen;
-  // ...
-  return true;
+  return this->match_fn_(strncmp, s, slen);
 }
 
 
@@ -90,10 +116,7 @@ Tokenizer::match(char const *s, size_t slen)
 bool
 Tokenizer::match_insensitive(char const *s, size_t slen)
 {
-  (void) s;
-  (void) slen;
-  // ...
-  return true;
+  return this->match_fn_(infra_ascii_strincmp, s, slen);
 }
 
 
@@ -115,23 +138,80 @@ Tokenizer::have_appropriate_end_tag(void) const
 
 
 void
+Tokenizer::destroy_doctype_(void)
+{
+  struct doctype_token *doctype = &this->doctype;
+
+  infra_string_clearref(&doctype->name);
+  infra_string_clearref(&doctype->system_id);
+  infra_string_clearref(&doctype->public_id);
+
+  memset(doctype, 0, sizeof (*doctype));
+}
+
+
+void
 Tokenizer::create_doctype(void)
 {
-  // ...
+  this->destroy_doctype_();
+  struct doctype_token *doctype = &this->doctype;
+
+#if 0
+  infra_string_zero(doctype->name);
+  infra_string_zero(doctype->system_id);
+  infra_string_zero(doctype->public_id);
+#endif
+
+  doctype->name = infra_string_create();
+  doctype->system_id = infra_string_create();
+  doctype->public_id = infra_string_create();
+
+  doctype->public_id_missing = false;
+  doctype->system_id_missing = false;
+  doctype->force_quirks_flag = false;
+
+}
+
+
+void
+Tokenizer::destroy_tag_(void)
+{
+  struct tag_token *tag = &this->tag;
+
+  infra_string_clearref(&tag->tagname);
+
+  memset(tag, 0, sizeof (*tag));
+}
+
+
+void
+Tokenizer::create_tag_(enum token_type tag_type)
+{
+  this->destroy_tag_();
+
+  struct tag_token *tag = &this->tag;
+
+  tag->tagname = infra_string_create();
+  tag->local_name = 0;
+  tag->name_space = INFRA_NAMESPACE_HTML;
+  tag->self_closing_flag = false;
+  tag->ack_self_closing_flag_ = false;
+
+  this->tag_type = tag_type;
 }
 
 
 void
 Tokenizer::create_start_tag(void)
 {
-  // ...
+  this->create_tag_(TOKEN_START_TAG);
 }
 
 
 void
 Tokenizer::create_end_tag(void)
 {
-  // ...
+  this->create_tag_(TOKEN_END_TAG);
 }
 
 
@@ -143,31 +223,79 @@ Tokenizer::create_comment(void)
 
 
 void
+Tokenizer::emit_token_(union token *token_data,
+                       enum token_type token_type)
+{
+  TreeBuilder *treebuilder = this->treebuilder;
+
+  if (treebuilder->skip_newline) {
+    treebuilder->skip_newline = false;
+
+    if (token_type == TOKEN_WHITESPACE
+     && token_data->ch == '\n')
+      return;
+  }
+
+  // printf("great shit\n");
+}
+
+
+static enum token_type
+character_token_type(char32_t ch)
+{
+  switch (ch) {
+    case '\t': case '\n': case '\f': case ' ':
+      return TOKEN_WHITESPACE;
+    default:
+      return TOKEN_CHARACTER;
+  }
+}
+
+
+void
 Tokenizer::emit_character(char32_t ch)
 {
-  // ...
-  (void) ch;
+#if 0
+  char buf[16] = { 0 };
+  grapheme_encode_utf8(ch, buf, sizeof (buf));
+
+  printf("emitting character '%s'\n", buf);
+#endif
+
+  this->emit_token_(reinterpret_cast<union token *>(&ch),
+                    character_token_type(ch));
 }
 
 
 void
 Tokenizer::emit_current_doctype(void)
 {
-  // ...
+  struct doctype_token *doctype = &this->doctype;
+
+  this->emit_token_(reinterpret_cast<union token *>(doctype),
+                    TOKEN_DOCTYPE);
 }
 
 
 void
 Tokenizer::emit_current_tag(void)
 {
-  // ...
+  struct tag_token *tag = &this->tag;
+
+  /* XXX: get local_name */
+
+  this->emit_token_(reinterpret_cast<union token *>(tag),
+                    this->tag_type);
 }
 
 
 void
 Tokenizer::emit_current_comment(void)
 {
-  // ...
+  InfraString **comment = &this->comment;
+
+  this->emit_token_(reinterpret_cast<union token *>(comment),
+                    TOKEN_COMMENT);
 }
 
 
@@ -175,7 +303,9 @@ Tokenizer::emit_current_comment(void)
 enum tokenizer_status
 Tokenizer::emit_eof(void)
 {
-  // ...
+  this->emit_token_(static_cast<union token *>(NULL),
+                    TOKEN_EOF);
+
   return TOKENIZER_STATUS_EOF;
 }
 
@@ -204,7 +334,8 @@ Tokenizer::run(void)
         break;
     }
 
-    do { status = Tokenizer::k_state_handlers_.at(this->state)(this, ch); }
+    do {  // printf("entering state %d\n", static_cast<int>(this->state));
+          status = Tokenizer::k_state_handlers_.at(this->state)(this, ch); }
       while (status == TOKENIZER_STATUS_RECONSUME);
   }
 

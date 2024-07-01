@@ -52,7 +52,7 @@ struct tag_token {
   uint16_t local_name;
 
   bool self_closing_flag;
-  bool acknowledged_self_closing;
+  bool ack_self_closing_flag_;
 };
 
 
@@ -188,6 +188,8 @@ class Tokenizer {
     enum tokenizer_state state;
     enum tokenizer_state ret_state;
 
+    enum token_type tag_type;
+
 
     /*
      * Methods
@@ -221,9 +223,18 @@ class Tokenizer {
 
     void run(void);
 
+
   private:
+    [[nodiscard]] bool match_fn_(int (*cmp) (char const *, char const *, size_t),
+                                 char const *s,
+                                 size_t slen);
+    void destroy_tag_(void);
     void create_tag_(enum token_type tag_type);
+    void destroy_doctype_(void);
+    void emit_token_(union token *token_data, enum token_type token_type);
+
     static const std::unordered_map<enum tokenizer_state, state_handler_cb_t> k_state_handlers_;
+
 };
 
 
@@ -285,6 +296,8 @@ class TreeBuilder {
       bool foster_parenting;
       bool parser_pause;
     } flags;
+
+    bool skip_newline;
 
 
     inline DOM_Element *

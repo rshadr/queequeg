@@ -8,6 +8,7 @@
 
 TreeBuilder::TreeBuilder(DOM_Document *document)
 {
+
   this->document = document;
 
   this->flags = {
@@ -17,6 +18,8 @@ TreeBuilder::TreeBuilder(DOM_Document *document)
     .foster_parenting = false,
     .parser_pause     = false,
   };
+
+  this->skip_newline = false;
 
 }
 
