@@ -15,7 +15,7 @@ enum dom_custom_element_state {
 };
 
 
-class DOM_Element : DOM_Node {
+class DOM_Element : public DOM_Node {
   public:
     int16_t local_name;
     int16_t name_space;

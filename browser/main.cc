@@ -63,9 +63,9 @@ main(int argc, char *argv[])
   close(fd);
   madvise(file_data, file_size, MADV_SEQUENTIAL);
 
-  DOM_Document document;
+  std::shared_ptr< DOM_Document> document = std::make_shared<DOM_Document>();
 
-  html_parse_document(&document, file_data, file_size);
+  html_parse_document(document, file_data, file_size);
 
   if (munmap(file_data, file_size) == -1)
     die("error: couldn't unmap file '%s'\n", file_path);

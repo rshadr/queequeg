@@ -10,11 +10,13 @@ CXXFLAGS += -I./lib/
 CXXFLAGS += -I.
 
 SRCS =\
-  browser/main\
-  html_parser/tokenizer\
-  html_parser/tokenizer_states\
-  html_parser/treebuilder\
-  html_parser/parser\
+	browser/main\
+	\
+	html_parser/insertion_modes\
+	html_parser/parser\
+	html_parser/tokenizer\
+	html_parser/tokenizer_states\
+	html_parser/treebuilder\
 
 OBJS = $(patsubst %,build/%.o,$(SRCS))
 DEPS = $(OBJS:.o=.d)

@@ -1,4 +1,8 @@
-#include <stddef.h>
+/*
+ * Copyright 2024 Adrien Ricciardi
+ * This file is part of the queequeg distribution (https://github.com/rshadr/queequeg)
+ * See LICENSE for details
+ */
 
 #include "html_parser/parser.hh"
 #include "html_parser/common.hh"
@@ -7,11 +11,9 @@
 
 
 int
-html_parse_document(DOM_Document *document,
+html_parse_document(std::shared_ptr< DOM_Document> document,
                     char const *input, size_t input_len)
 {
-  (void) document;
-
   Tokenizer   tokenizer   = Tokenizer(input, input_len);
   TreeBuilder treebuilder = TreeBuilder(document);
 

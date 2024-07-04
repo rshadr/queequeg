@@ -1,13 +1,11 @@
 #ifndef _queequeg_html_parser_common_hh_
 #define _queequeg_html_parser_common_hh_
 
-#include <unordered_map>
-
-#include <stddef.h>
-#include <uchar.h>
+#include <memory>
+#include <vector>
+#include <list>
 
 #include <infra/string.h>
-#include <infra/stack.h>
 #include <infra/namespace.h>
 
 #include "dom/core/node.hh"
@@ -47,7 +45,7 @@ struct doctype_token {
 
 struct tag_token {
   InfraString *tagname;
-  InfraStack *attrs;
+  // InfraStack *attrs;
   enum InfraNamespace name_space;
   uint16_t local_name;
 
@@ -56,7 +54,7 @@ struct tag_token {
 };
 
 
-union token {
+union token_data {
   InfraString *         comment;
   struct doctype_token  doctype;
   struct tag_token      tag;
@@ -64,9 +62,18 @@ union token {
 };
 
 
+class InsertionLocation {
+  public:
+    DOM_Node *parent;
+    DOM_Node *child;
+};
+
 
 enum tokenizer_state {
-  DATA_STATE,
+  /*
+   * 0 needed for jump table to work properly
+   */
+  DATA_STATE = 0,
   RCDATA_STATE,
   RAWTEXT_STATE,
   SCRIPT_STATE,
@@ -105,7 +112,6 @@ enum tokenizer_state {
   ATTR_VALUE_SINGLE_QUOTED_STATE,
   ATTR_VALUE_UNQUOTED_STATE,
   AFTER_ATTR_VALUE_QUOTED_STATE,
-  AFTER_ATTR_VALUE_UNQUOTED_STATE,
   SELF_CLOSING_START_TAG_STATE,
   BOGUS_COMMENT_STATE,
   MARKUP_DECL_OPEN_STATE,
@@ -195,8 +201,11 @@ class Tokenizer {
      * Methods
      */
     [[nodiscard]] char32_t getchar(void);
+
     [[nodiscard]] bool match(char const *s, size_t slen);
+
     [[nodiscard]] bool match_insensitive(char const *s, size_t slen);
+
     void error(char const *errstr);
 
     bool have_appropriate_end_tag(void) const;
@@ -210,14 +219,21 @@ class Tokenizer {
     }
 
     void create_doctype(void);
+
     void create_start_tag(void);
+
     void create_end_tag(void);
+
     void create_comment(void);
 
     void emit_character(char32_t ch);
+
     void emit_current_doctype(void);
+
     void emit_current_tag(void);
+
     void emit_current_comment(void);
+
     [[nodiscard]] enum tokenizer_status emit_eof(void);
 
 
@@ -231,16 +247,18 @@ class Tokenizer {
     void destroy_tag_(void);
     void create_tag_(enum token_type tag_type);
     void destroy_doctype_(void);
-    void emit_token_(union token *token_data, enum token_type token_type);
+    void emit_token_(union token_data *token_data, enum token_type token_type);
 
-    static const std::unordered_map<enum tokenizer_state, state_handler_cb_t> k_state_handlers_;
-
+    static const state_handler_cb_t k_state_handlers_[NUM_STATES];
 };
 
 
 
 enum insertion_mode {
-  INITIAL_MODE,
+  /*
+   * 0 needed for jump table to work properly
+   */
+  INITIAL_MODE = 0,
   BEFORE_HTML_MODE,
   BEFORE_HEAD_MODE,
   IN_HEAD_MODE,
@@ -269,22 +287,35 @@ enum insertion_mode {
 };
 
 
+enum treebuilder_status {
+  TREEBUILDER_STATUS_REPROCESS,
+  TREEBUILDER_STATUS_OK,
+  TREEBUILDER_STATUS_IGNORE,
+  TREEBUILDER_STATUS_STOP,
+};
+
+
 class TreeBuilder {
   public:
-      TreeBuilder(DOM_Document *document);
+      TreeBuilder(std::shared_ptr< DOM_Document> document);
     ~TreeBuilder();
 
+    /*
+     * Handlers
+     */
+    typedef enum treebuilder_status (*insertion_mode_handler_cb_t)
+     (TreeBuilder *treebuilder, union token_data *token_data, enum token_type);
 
     Tokenizer *tokenizer;
 
-    DOM_Document *document;
-    DOM_Element *context;
+    std::shared_ptr< DOM_Document> document;
+    std::shared_ptr< DOM_Element> context;
 
-    DOM_Element *head;
-    DOM_Element *form;
+    std::shared_ptr< DOM_Element> head;
+    std::shared_ptr< DOM_Element> form;
 
-    InfraStack *open_elements;
-    InfraStack *formatting_elements;
+    std::vector< std::shared_ptr< DOM_Element>> open_elements;
+    std::list< std::shared_ptr< DOM_Element>> formatting_elements;
 
     enum insertion_mode mode;
     enum insertion_mode original_mode;
@@ -300,36 +331,70 @@ class TreeBuilder {
     bool skip_newline;
 
 
-    inline DOM_Element *
-    current_node(void) const
+    /*
+     * Methods
+     */
+    void process_token(union token_data *token_data, enum token_type token_type);
+
+    void error(void);
+
+
+#if 0
+    inline void
+    push_open_element(std::shared_ptr< DOM_Element> element)
     {
-      return static_cast<DOM_Element *>(infra_stack_peek(this->open_elements));
+      this->open_elements.push_back(element);
     }
 
 
-    inline DOM_Element *
+    inline std::shared_ptr< DOM_Element>
+    pop_open_element2
+#endif
+
+
+    inline std::shared_ptr< DOM_Element>
+    current_node(void) const
+    {
+      return this->open_elements.back();
+    }
+
+
+    inline std::shared_ptr< DOM_Element>
     adjusted_current_node(void) const
     {
-      if (this->context != NULL)
+      if (this->context != nullptr)
         return this->context;
 
       return this->current_node();
     }
 
 
-    void error(void);
+    InsertionLocation appropriate_insertion_place(std::shared_ptr< DOM_Node> override_target = nullptr);
+
+    std::shared_ptr< DOM_Element> insert_foreign_element(struct tag_token *tag,
+     enum InfraNamespace name_space, bool only_add_to_element_stack = false);
+
+    std::shared_ptr< DOM_Element> insert_html_element(struct tag_token *tag);
 
     void insert_character(char32_t ch);
+
+    void insert_comment(InfraString *data, InsertionLocation where);
+
+    inline void
+    insert_comment(InfraString *data)
+    {
+      this->insert_comment(data, this->appropriate_insertion_place());
+    }
+
+    [[nodiscard]] enum treebuilder_status generic_raw_text_parse(struct tag_token *tag);
+    [[nodiscard]] enum treebuilder_status generic_rcdata_parse(struct tag_token *tag);
+
+
+  private:
+    static const insertion_mode_handler_cb_t k_insertion_mode_handlers_[NUM_MODES];
 };
 
 
-struct InsertionLocation {
-  DOM_Node *parent;
-  DOM_Node *child;
-};
-
-
-extern Tokenizer::state_handler_cb_t k_html_tokenizer_states_[NUM_STATES];
 // extern TreeBuilder::insertion_mode_handler_cb_t k_insertion_modes[NUM_MODES];
 
 #endif /* !defined(_queequeg_html_parser_common_hh_) */

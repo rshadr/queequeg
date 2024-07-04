@@ -28,6 +28,11 @@ Tokenizer::Tokenizer(char const *input, size_t input_len)
 
   this->tmpbuf = infra_string_create();
   this->comment = infra_string_create();
+
+  printf("number of states: %d\n", static_cast<int>(NUM_STATES));
+  printf("markup_decl_open_state: %d\n", static_cast<int>(MARKUP_DECL_OPEN_STATE));
+  printf("jump table: %zu\n", sizeof (Tokenizer::k_state_handlers_));
+  printf("jump table entry 0: %zu\n", sizeof (Tokenizer::k_state_handlers_[0]));
 }
 
 
@@ -223,20 +228,10 @@ Tokenizer::create_comment(void)
 
 
 void
-Tokenizer::emit_token_(union token *token_data,
+Tokenizer::emit_token_(union token_data *token_data,
                        enum token_type token_type)
 {
-  TreeBuilder *treebuilder = this->treebuilder;
-
-  if (treebuilder->skip_newline) {
-    treebuilder->skip_newline = false;
-
-    if (token_type == TOKEN_WHITESPACE
-     && token_data->ch == '\n')
-      return;
-  }
-
-  // printf("great shit\n");
+  this->treebuilder->process_token(token_data, token_type);
 }
 
 
@@ -262,7 +257,7 @@ Tokenizer::emit_character(char32_t ch)
   printf("emitting character '%s'\n", buf);
 #endif
 
-  this->emit_token_(reinterpret_cast<union token *>(&ch),
+  this->emit_token_(reinterpret_cast<union token_data *>(&ch),
                     character_token_type(ch));
 }
 
@@ -272,7 +267,7 @@ Tokenizer::emit_current_doctype(void)
 {
   struct doctype_token *doctype = &this->doctype;
 
-  this->emit_token_(reinterpret_cast<union token *>(doctype),
+  this->emit_token_(reinterpret_cast<union token_data *>(doctype),
                     TOKEN_DOCTYPE);
 }
 
@@ -284,7 +279,7 @@ Tokenizer::emit_current_tag(void)
 
   /* XXX: get local_name */
 
-  this->emit_token_(reinterpret_cast<union token *>(tag),
+  this->emit_token_(reinterpret_cast<union token_data *>(tag),
                     this->tag_type);
 }
 
@@ -294,7 +289,7 @@ Tokenizer::emit_current_comment(void)
 {
   InfraString **comment = &this->comment;
 
-  this->emit_token_(reinterpret_cast<union token *>(comment),
+  this->emit_token_(reinterpret_cast<union token_data *>(comment),
                     TOKEN_COMMENT);
 }
 
@@ -303,7 +298,7 @@ Tokenizer::emit_current_comment(void)
 enum tokenizer_status
 Tokenizer::emit_eof(void)
 {
-  this->emit_token_(static_cast<union token *>(NULL),
+  this->emit_token_(static_cast<union token_data *>(nullptr),
                     TOKEN_EOF);
 
   return TOKENIZER_STATUS_EOF;
@@ -334,8 +329,7 @@ Tokenizer::run(void)
         break;
     }
 
-    do {  // printf("entering state %d\n", static_cast<int>(this->state));
-          status = Tokenizer::k_state_handlers_.at(this->state)(this, ch); }
+    do { status = Tokenizer::k_state_handlers_[this->state](this, ch); }
       while (status == TOKENIZER_STATUS_RECONSUME);
   }
 

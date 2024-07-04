@@ -1,6 +1,9 @@
 #ifndef _queequeg_dom_node_hh_
 #define _queequeg_dom_node_hh_
 
+#include <vector>
+#include <memory>
+
 #include "dom/events/event_target.hh"
 
 
@@ -23,13 +26,14 @@ enum dom_node_type {
 };
 
 
-class DOM_Node : DOM_EventTarget {
+class DOM_Node : public DOM_EventTarget {
 
   public:
     DOM_Document *node_document;
     enum dom_node_type node_type;
 
-    DOM_Node *get_previous_sibling(void);
+    std::weak_ptr< DOM_Node> parent_node;
+    std::vector< std::shared_ptr< DOM_Node>> child_nodes;
 
     void insert_node(DOM_Node *node, DOM_Node *child, bool supp_observers = false);
     void append_node(DOM_Node *node, bool supp_observers = false);
