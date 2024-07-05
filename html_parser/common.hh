@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include <list>
+#include <string>
 
 #include <infra/string.h>
 #include <infra/namespace.h>
@@ -64,8 +65,8 @@ union token_data {
 
 class InsertionLocation {
   public:
-    DOM_Node *parent;
-    DOM_Node *child;
+    std::shared_ptr< DOM_Node> parent;
+    std::shared_ptr< DOM_Node> child;
 };
 
 
@@ -300,6 +301,7 @@ class TreeBuilder {
       TreeBuilder(std::shared_ptr< DOM_Document> document);
     ~TreeBuilder();
 
+  public:
     /*
      * Handlers
      */
@@ -371,8 +373,15 @@ class TreeBuilder {
 
     InsertionLocation appropriate_insertion_place(std::shared_ptr< DOM_Node> override_target = nullptr);
 
+    [[nodiscard]] std::shared_ptr< DOM_Element>
+    create_element_for_token(struct tag_token *tag,
+                             enum InfraNamespace name_space,
+                             std::shared_ptr< DOM_Node> intended_parent);
+
+    void insert_element_at_adjusted_insertion_location(std::shared_ptr< DOM_Element>);
+
     std::shared_ptr< DOM_Element> insert_foreign_element(struct tag_token *tag,
-     enum InfraNamespace name_space, bool only_add_to_element_stack = false);
+     enum InfraNamespace name_space, bool only_add_to_element_stack);
 
     std::shared_ptr< DOM_Element> insert_html_element(struct tag_token *tag);
 

@@ -17,6 +17,11 @@ SRCS =\
 	html_parser/tokenizer\
 	html_parser/tokenizer_states\
 	html_parser/treebuilder\
+	\
+	dom/core/document\
+	dom/core/document_type\
+	dom/core/element\
+	dom/core/node\
 
 OBJS = $(patsubst %,build/%.o,$(SRCS))
 DEPS = $(OBJS:.o=.d)

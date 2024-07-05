@@ -77,7 +77,7 @@ Tokenizer::getchar(void)
 
   if (!left || !(read = grapheme_decode_utf8(this->input.p,
                          left, reinterpret_cast<uint_least32_t *>(&ch))))
-    return -1;
+    return static_cast<char32_t>(-1);
 
 
   this->input.p += read;

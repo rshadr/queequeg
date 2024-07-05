@@ -6,11 +6,13 @@
  * See LICENSE for details
  */
 
+#include <memory>
+
 
 class DOM_Event;
 
 
-class DOM_EventTarget {
+class DOM_EventTarget : public std::enable_shared_from_this< DOM_EventTarget> {
   protected:
     typedef DOM_EventTarget *(DOM_EventTarget::*get_parent_cb_t) (DOM_Event *event);
 };

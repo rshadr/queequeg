@@ -2164,7 +2164,7 @@ ambiguous_ampersand_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alnum(c)) {
     if (tokenizer->char_ref_in_attr())
-      0; // infra_string_put_char(tokenizer->attr, c);
+      (void)0; // infra_string_put_char(tokenizer->attr, c);
     else
       tokenizer->emit_character(c);
     return TOKENIZER_STATUS_OK;

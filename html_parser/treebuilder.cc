@@ -85,6 +85,43 @@ TreeBuilder::appropriate_insertion_place(std::shared_ptr< DOM_Node> override_tar
 }
 
 
+[[nodiscard]]
+std::shared_ptr< DOM_Element>
+TreeBuilder::create_element_for_token(struct tag_token *tag,
+                                      enum InfraNamespace name_space,
+                                      std::shared_ptr< DOM_Node> intended_parent)
+{
+  std::shared_ptr< DOM_Document> document = intended_parent->node_document.lock();
+  int16_t local_name = 0;
+  void *is = nullptr;
+  void *definition = nullptr;
+
+  bool exec_script = (definition != nullptr && this->context == nullptr);
+
+  /* ... */
+
+  std::shared_ptr< DOM_Element> element =
+   document->create_element(local_name, name_space, nullptr, is, exec_script);
+
+  /* ... */
+
+
+  return element;
+}
+
+
+void
+TreeBuilder::insert_element_at_adjusted_insertion_location(std::shared_ptr< DOM_Element> element)
+{
+  InsertionLocation location = this->appropriate_insertion_place();
+  /* XXX: check if can insert */
+
+  /* ... */
+  /* XXX: insert */
+  /* ... */
+}
+
+
 std::shared_ptr< DOM_Element>
 TreeBuilder::insert_foreign_element(struct tag_token *tag,
                                     enum InfraNamespace name_space,

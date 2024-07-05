@@ -27,16 +27,22 @@ enum dom_node_type {
 
 
 class DOM_Node : public DOM_EventTarget {
+  protected:
+    DOM_Node(std::shared_ptr<DOM_Document> node_document,
+             enum dom_node_type node_type);
 
   public:
-    DOM_Document *node_document;
+    std::weak_ptr< DOM_Document> node_document;
     enum dom_node_type node_type;
 
     std::weak_ptr< DOM_Node> parent_node;
     std::vector< std::shared_ptr< DOM_Node>> child_nodes;
 
-    void insert_node(DOM_Node *node, DOM_Node *child, bool supp_observers = false);
-    void append_node(DOM_Node *node, bool supp_observers = false);
+    void insert_node(std::shared_ptr< DOM_Node> node,
+                     std::shared_ptr< DOM_Node> child,
+                     bool supp_observers = false);
+
+    void append_node(std::shared_ptr< DOM_Node> node, bool supp_observers = false);
 
 
   protected:
