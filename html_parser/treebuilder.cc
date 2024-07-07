@@ -64,6 +64,18 @@ TreeBuilder::process_token(union token_data *token_data,
 }
 
 
+[[nodiscard]]
+enum treebuilder_status
+TreeBuilder::tree_construction_dispatcher_(union token_data *token_data,
+                                           enum token_type token_type)
+{
+  (void) token_data;
+  (void) token_type;
+
+  return TREEBUILDER_STATUS_OK;
+}
+
+
 void
 TreeBuilder::error(void)
 {
@@ -90,7 +102,7 @@ TreeBuilder::appropriate_insertion_place(std::shared_ptr< DOM_Node> override_tar
 
 [[nodiscard]]
 std::shared_ptr< DOM_Element>
-TreeBuilder::create_element_for_token(struct tag_token *tag,
+TreeBuilder::create_element_for_token(struct tag_token const *tag,
                                       enum InfraNamespace name_space,
                                       std::shared_ptr< DOM_Node> intended_parent)
 {
@@ -126,7 +138,7 @@ TreeBuilder::insert_element_at_adjusted_insertion_location(std::shared_ptr< DOM_
 
 
 std::shared_ptr< DOM_Element>
-TreeBuilder::insert_foreign_element(struct tag_token *tag,
+TreeBuilder::insert_foreign_element(struct tag_token const *tag,
                                     enum InfraNamespace name_space,
                                     bool only_add_to_element_stack)
 {
@@ -142,7 +154,7 @@ TreeBuilder::insert_foreign_element(struct tag_token *tag,
 
 
 std::shared_ptr< DOM_Element>
-TreeBuilder::insert_html_element(struct tag_token *tag)
+TreeBuilder::insert_html_element(struct tag_token const *tag)
 {
   return this->insert_foreign_element(tag, INFRA_NAMESPACE_HTML, false);
 }

@@ -19,8 +19,8 @@ class DOM_Element;
 
 
 enum dom_document_format {
-  DOM_DOCFORMAT_XML,
-  DOM_DOCFORMAT_HTML,
+  DOM_DOCUMENT_FORMAT_XML,
+  DOM_DOCUMENT_FORMAT_HTML,
 };
 
 
@@ -48,7 +48,7 @@ enum dom_document_parser_status {
 
 class DOM_Document : public DOM_Node {
   public:
-    DOM_Document(enum dom_document_format format);
+    DOM_Document(enum dom_document_format format = DOM_DOCUMENT_FORMAT_HTML);
     virtual ~DOM_Document();
 
   public:

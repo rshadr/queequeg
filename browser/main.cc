@@ -68,7 +68,7 @@ main(int argc, char *argv[])
   close(fd);
   madvise(file_data, file_size, MADV_SEQUENTIAL);
 
-  std::shared_ptr< DOM_Document> document = std::make_shared<DOM_Document>(DOM_DOCFORMAT_HTML);
+  std::shared_ptr< DOM_Document> document = std::make_shared<DOM_Document>(DOM_DOCUMENT_FORMAT_HTML);
   document->node_document = std::static_pointer_cast<DOM_Document>(document->shared_from_this());
 
   html_parse_document(document, file_data, file_size);

@@ -11,6 +11,8 @@
  *
  */
 #include "dom/core/document_type.hh"
+#include "dom/html/html_html_element.hh"
+#include "html/elements.hh"
 
 #include "html_parser/common.hh"
 
@@ -99,11 +101,65 @@ before_html_mode(TreeBuilder *treebuilder,
   }
 
 
-  /* ... */
+  if (token_type == TOKEN_START_TAG) {
+    struct tag_token *tag = &token_data->tag;
 
 
-  {
-    /* ... */
+    switch (tag->local_name)
+    {
+      case HTML_ELEMENT_HTML: {
+        std::shared_ptr< DOM_HTMLHtmlElement> html =
+         std::make_shared< DOM_HTMLHtmlElement>(treebuilder->document);
+
+        html->name_space = INFRA_NAMESPACE_HTML;
+        html->local_name = HTML_ELEMENT_HTML;
+
+        treebuilder->document->append_node(html);
+
+        treebuilder->open_elements.push_back(html);
+
+        treebuilder->mode = BEFORE_HEAD_MODE;
+        return TREEBUILDER_STATUS_OK;
+      }
+
+      default:
+        break;
+    }
+
+    goto anything_else;
+  }
+
+
+  if (token_type == TOKEN_END_TAG) {
+    struct tag_token *tag = &token_data->tag;
+
+
+    switch (tag->local_name)
+    {
+      case HTML_ELEMENT_HEAD: case HTML_ELEMENT_BODY: case HTML_ELEMENT_HTML:
+      case HTML_ELEMENT_BR:
+        goto anything_else;
+
+      default: {
+        treebuilder->error();
+        return TREEBUILDER_STATUS_IGNORE;
+      }
+    }
+
+  }
+
+
+  anything_else: {
+    std::shared_ptr< DOM_HTMLHtmlElement> html =
+     std::make_shared< DOM_HTMLHtmlElement>(treebuilder->document);
+
+    html->name_space = INFRA_NAMESPACE_HTML;
+    html->local_name = HTML_ELEMENT_HTML;
+
+    treebuilder->document->append_node(html);
+
+    treebuilder->open_elements.push_back(html);
+
     treebuilder->mode = BEFORE_HEAD_MODE;
     return TREEBUILDER_STATUS_REPROCESS;
   }
@@ -135,11 +191,50 @@ before_head_mode(TreeBuilder *treebuilder,
   }
 
 
-  /* XXX: start tag tokens */
+  if (token_type == TOKEN_START_TAG) {
+    struct tag_token *tag = &token_data->tag;
 
 
-  {
-    /* ... */
+    switch (tag->local_name)
+    {
+      case HTML_ELEMENT_HTML: {
+        /* XXX: process in body */
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_HEAD: {
+        std::shared_ptr< DOM_HTMLHeadElement> head =
+         std::static_pointer_cast<DOM_HTMLHeadElement>(treebuilder->insert_html_element(tag));
+
+        treebuilder->head = head;
+
+        treebuilder->mode = IN_HEAD_MODE;
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      default:
+        break;
+    }
+
+    goto anything_else;
+  }
+
+
+  anything_else: {
+    static const struct tag_token dummy_token = {
+      .tag_name = { },
+      .local_name = HTML_ELEMENT_HEAD,
+      .self_closing_flag = false,
+      .ack_self_closing_flag_ = false,
+    };
+
+    std::shared_ptr< DOM_HTMLHeadElement> head =
+      std::static_pointer_cast< DOM_HTMLHeadElement>(treebuilder->insert_html_element(&dummy_token));
+
+    treebuilder->head = head;
+
     treebuilder->mode = IN_HEAD_MODE;
     return TREEBUILDER_STATUS_REPROCESS;
   }
@@ -173,22 +268,113 @@ in_head_mode(TreeBuilder *treebuilder,
   if (token_type == TOKEN_START_TAG) {
     struct tag_token *tag = &token_data->tag;
 
-    switch (tag->local_name) {
-      /* ... */
+
+    switch (tag->local_name)
+    {
+      case HTML_ELEMENT_HTML: {
+        /* XXX: process in body */
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_BASE: case HTML_ELEMENT_BASEFONT: case HTML_ELEMENT_BGSOUND:
+      case HTML_ELEMENT_LINK: {
+        treebuilder->insert_html_element(tag);
+
+        treebuilder->open_elements.pop_back();
+
+        /* XXX: ack self-closing flag */
+
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_META: {
+        treebuilder->insert_html_element(tag);
+
+        treebuilder->open_elements.pop_back();
+
+        /* XXX: ack self-closing flag */
+
+        /* ... */
+
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_TITLE: {
+        return treebuilder->generic_rcdata_parse(tag);
+      }
+
+
+      case HTML_ELEMENT_NOSCRIPT: {
+        if (treebuilder->flags.scripting) {
+          return treebuilder->generic_raw_text_parse(tag);
+        } else {
+          treebuilder->insert_html_element(tag);
+          treebuilder->mode = IN_HEAD_NOSCRIPT_MODE;
+          return TREEBUILDER_STATUS_OK;
+        }
+      }
+
+
+      case HTML_ELEMENT_NOFRAMES: case HTML_ELEMENT_STYLE: {
+        return treebuilder->generic_raw_text_parse(tag);
+      }
+
+
+      case HTML_ELEMENT_SCRIPT: {
+        /* XXX: ... */
+
+        treebuilder->tokenizer->state = SCRIPT_STATE;
+        treebuilder->original_mode = treebuilder->mode;
+        treebuilder->mode = TEXT_MODE;
+
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_TEMPLATE: {
+        /* XXX: ... */
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_HEAD: {
+        treebuilder->error();
+        return TREEBUILDER_STATUS_IGNORE;
+      }
+
 
       default:
-        goto anything_else;
-
+        break;
     }
 
+    goto anything_else;
   }
 
 
   if (token_type == TOKEN_END_TAG) {
     struct tag_token *tag = &token_data->tag;
 
-    switch (tag->local_name) {
-      /* ... */
+    switch (tag->local_name)
+    {
+      case HTML_ELEMENT_HEAD: {
+        treebuilder->open_elements.pop_back();
+        treebuilder->mode = AFTER_HEAD_MODE;
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_BODY: case HTML_ELEMENT_HTML: case HTML_ELEMENT_BR:
+        goto anything_else;
+
+
+      case HTML_ELEMENT_TEMPLATE: {
+        /* XXX: ... */
+        return TREEBUILDER_STATUS_OK;
+      }
+
 
       default: {
         treebuilder->error();
@@ -343,7 +529,7 @@ in_body_mode(TreeBuilder *treebuilder,
 {
 
   if (token_type == TOKEN_CHARACTER) {
-    if (token_data->ch == '\0') {
+    if (token_data->ch == U'\0') {
       treebuilder->error();
       return TREEBUILDER_STATUS_IGNORE;
     }

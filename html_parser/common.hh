@@ -11,6 +11,7 @@
 #include <vector>
 #include <list>
 #include <string>
+#include <unordered_map>
 
 #include <string.h>
 
@@ -20,13 +21,16 @@
 #include "dom/core/document.hh"
 #include "dom/core/element.hh"
 
+#include "dom/html/html_head_element.hh"
+
+#include "html/elements.hh"
+
 /*
  * Header used internally by parser components
  */
 
 class Tokenizer;
 class TreeBuilder;
-
 
 
 enum token_type {
@@ -41,12 +45,6 @@ enum token_type {
 
 
 struct doctype_token {
-  doctype_token() {
-    this->public_id_missing = false;
-    this->system_id_missing = false;
-    this->force_quirks_flag = false;
-  }
-
   std::string name;
   std::string public_id;
   std::string system_id;
@@ -57,18 +55,24 @@ struct doctype_token {
 };
 
 
+/*
+ * This enum is only relevant for the "in body" insertion mode; it adds support
+ * for foreign top-level elements by treating them as though they were regular
+ * HTML elements in our index-based system.
+ *
+ * When inserting the corresponding tag tokens, they are transparently turned
+ * into regular tokens with an std::string tag name which will translate to
+ * the correct MathML/SVG element index.
+ */
+enum html_element_index_parser_internal : uint16_t {
+  HTML_ELEMENT_MATH = NUM_HTML_BUILTIN_ELEMENTS,
+  HTML_ELEMENT_SVG,
+};
+
+
 struct tag_token {
-  tag_token() {
-    this->name_space = INFRA_NAMESPACE_HTML;
-    this->local_name = 0;
-
-    this->self_closing_flag = false;
-    this->ack_self_closing_flag_ = false;
-  }
-
   std::string tag_name;
   // InfraStack *attrs;
-  enum InfraNamespace name_space;
   uint16_t local_name;
 
   bool self_closing_flag;
@@ -251,6 +255,8 @@ class Tokenizer {
            || this->ret_state == ATTR_VALUE_UNQUOTED_STATE);
     }
 
+    void flush_char_ref_codepoints(void);
+
     void create_doctype(void);
 
     void create_start_tag(void);
@@ -287,6 +293,8 @@ class Tokenizer {
     void emit_token_(union token_data *token_data, enum token_type token_type);
 
     static const state_handler_cb_t k_state_handlers_[NUM_STATES];
+
+    static const std::unordered_map< std::string, uint16_t> k_foreign_toplevel_elements_map_;
 };
 
 
@@ -349,7 +357,7 @@ class TreeBuilder {
     std::shared_ptr< DOM_Document> document;
     std::shared_ptr< DOM_Element> context;
 
-    std::shared_ptr< DOM_Element> head;
+    std::shared_ptr< DOM_HTMLHeadElement> head;
     std::shared_ptr< DOM_Element> form;
 
     std::vector< std::shared_ptr< DOM_Element>> open_elements;
@@ -407,16 +415,16 @@ class TreeBuilder {
     InsertionLocation appropriate_insertion_place(std::shared_ptr< DOM_Node> override_target = nullptr);
 
     [[nodiscard]] std::shared_ptr< DOM_Element>
-    create_element_for_token(struct tag_token *tag,
+    create_element_for_token(struct tag_token const *tag,
                              enum InfraNamespace name_space,
                              std::shared_ptr< DOM_Node> intended_parent);
 
     void insert_element_at_adjusted_insertion_location(std::shared_ptr< DOM_Element>);
 
-    std::shared_ptr< DOM_Element> insert_foreign_element(struct tag_token *tag,
+    std::shared_ptr< DOM_Element> insert_foreign_element(struct tag_token const *tag,
      enum InfraNamespace name_space, bool only_add_to_element_stack);
 
-    std::shared_ptr< DOM_Element> insert_html_element(struct tag_token *tag);
+    std::shared_ptr< DOM_Element> insert_html_element(struct tag_token const *tag);
 
     void insert_character(char32_t ch);
 
@@ -434,6 +442,9 @@ class TreeBuilder {
 
 
   private:
+    [[nodiscard]] enum treebuilder_status tree_construction_dispatcher_(union token_data *token_data,
+                                                                        enum token_type token_type);
+
     static const insertion_mode_handler_cb_t k_insertion_mode_handlers_[NUM_MODES];
 };
 

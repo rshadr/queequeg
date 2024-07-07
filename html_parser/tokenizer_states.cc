@@ -2096,7 +2096,7 @@ char_ref_state(Tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     default:
-      /* XXX flush code points */
+      tokenizer->flush_char_ref_codepoints();
       tokenizer->state = tokenizer->ret_state;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -2140,7 +2140,7 @@ named_char_ref_state(Tokenizer *tokenizer, char32_t c)
       {
         /* first case (historical) */
 
-        /* XXX flush */
+        tokenizer->flush_char_ref_codepoints();
         tokenizer->state = CHAR_REF_STATE;
         return TOKENIZER_STATUS_OK;
       }
@@ -2160,7 +2160,7 @@ named_char_ref_state(Tokenizer *tokenizer, char32_t c)
           k_named_char_refs_[i].utf8,
           k_named_char_refs_[i].utf8_len);
 #endif
-        /* XXX FLUSH */
+        tokenizer->flush_char_ref_codepoints();
 
         tokenizer->state = tokenizer->ret_state;
         return TOKENIZER_STATUS_OK;
@@ -2171,7 +2171,7 @@ named_char_ref_state(Tokenizer *tokenizer, char32_t c)
   }
 
   /* -> otherwise */
-  /* XXX flush */
+  tokenizer->flush_char_ref_codepoints();
   tokenizer->state = AMBIGUOUS_AMPERSAND_STATE;
   return TOKENIZER_STATUS_OK;
 }
@@ -2229,7 +2229,7 @@ hex_char_ref_start_state(Tokenizer *tokenizer, char32_t c)
 
   {
     tokenizer->error("absence-of-digits-in-numeric-character-reference");
-    /* XXX flush */
+    tokenizer->flush_char_ref_codepoints();
     tokenizer->state = tokenizer->ret_state;
     return TOKENIZER_STATUS_RECONSUME;
   }
@@ -2246,7 +2246,7 @@ dec_char_ref_start_state(Tokenizer *tokenizer, char32_t c)
 
   {
     tokenizer->error("absence-of-digits-in-numeric-character-reference");
-    /* XXX flush */
+    tokenizer->flush_char_ref_codepoints();
     tokenizer->state = tokenizer->ret_state;
     return TOKENIZER_STATUS_RECONSUME;
   }
@@ -2344,27 +2344,29 @@ numeric_char_ref_end_state(Tokenizer *tokenizer, char32_t ch)
 {
   (void) ch;
 
-  if (tokenizer->char_ref > 0x10FFFF) {
-    tokenizer->error("character-reference-outside-of-unicode-range");
-    tokenizer->char_ref = 0xFFFD;
-  }
-
   char32_t code = tokenizer->char_ref;
 
   if (code == 0x00) {
     tokenizer->error("null-character-reference");
     code = 0xFFFD;
-  } else if (unicode_is_surrogate(code)) {
-    /* XXX */
+  } else if (code > 0x10FFFF) {
+    tokenizer->error("character-reference-outside-unicode-range");
+    code = 0xFFFD;
+  }  else if (unicode_is_surrogate(code)) {
+    tokenizer->error("surrogate-character-reference");
+    code = 0xFFFD;
   } else if (unicode_is_noncharacter(code)) {
-    /* XXX */
+    tokenizer->error("noncharacter-character-reference");
+  } else if ((code == 0x0D)) {
+    /* XXX: other cases */
+    tokenizer->error("control-character-reference");
   } else if (k_numeric_subst_.contains(code)) {
     code = k_numeric_subst_.at(code);
   }
 
   tokenizer->temp_buffer.clear();
   tokenizer->temp_buffer.push_back(code);
-  /* XXX flush */
+  tokenizer->flush_char_ref_codepoints();
 
   tokenizer->state = tokenizer->ret_state;
   return TOKENIZER_STATUS_OK;

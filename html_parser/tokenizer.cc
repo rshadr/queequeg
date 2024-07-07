@@ -15,6 +15,11 @@
 #include "html_parser/common.hh"
 
 
+const std::unordered_map< std::string, uint16_t> Tokenizer::k_foreign_toplevel_elements_map_ = {
+  { "math", HTML_ELEMENT_MATH },
+  { "svg",  HTML_ELEMENT_SVG  },
+};
+
 
 Tokenizer::Tokenizer(char const *input, size_t input_len)
 {
@@ -127,6 +132,20 @@ Tokenizer::have_appropriate_end_tag(void) const
 
 
 void
+Tokenizer::flush_char_ref_codepoints(void)
+{
+
+  for (char32_t ch : this->temp_buffer) {
+    if (this->is_char_ref_in_attr())
+      (void)0;
+    else
+      this->emit_character(ch);
+  }
+
+}
+
+
+void
 Tokenizer::destroy_doctype_(void)
 {
   struct doctype_token *doctype = &this->doctype;
@@ -168,9 +187,7 @@ Tokenizer::create_tag_(enum token_type tag_type)
 
   struct tag_token *tag = &this->tag;
 
-  tag->name_space = INFRA_NAMESPACE_HTML;
   tag->local_name = 0;
-
   tag->self_closing_flag = false;
   tag->ack_self_closing_flag_ = false;
 
@@ -249,7 +266,21 @@ Tokenizer::emit_current_tag(void)
 {
   struct tag_token *tag = &this->tag;
 
-  /* XXX: get local_name */
+
+  /*
+   * This step is only meant to speed up the parser when (re)processing tokens
+   * multiple times; it is cheaper to hash once than string-compare often.
+   */
+  if (HTML::k_local_names_table.contains(tag->tag_name)) {
+    tag->local_name = HTML::k_local_names_table.at(tag->tag_name);
+  } else if (Tokenizer::k_foreign_toplevel_elements_map_.contains(tag->tag_name)) {
+    /*
+     * When a tag token falling under this condition gets inserted, its temporary
+     * element index is ignored.
+     */
+    tag->local_name = Tokenizer::k_foreign_toplevel_elements_map_.at(tag->tag_name);
+  }
+
 
   this->emit_token_(reinterpret_cast<union token_data *>(tag),
                     this->tag_type);
