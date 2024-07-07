@@ -22,6 +22,8 @@ SRCS =\
 	dom/core/document_type\
 	dom/core/element\
 	dom/core/node\
+	\
+	qglib/unicode\
 
 OBJS = $(patsubst %,build/%.o,$(SRCS))
 DEPS = $(OBJS:.o=.d)

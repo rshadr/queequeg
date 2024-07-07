@@ -14,7 +14,9 @@ class DOM_Event;
 
 class DOM_EventTarget : public std::enable_shared_from_this< DOM_EventTarget> {
   protected:
-    typedef DOM_EventTarget *(DOM_EventTarget::*get_parent_cb_t) (DOM_Event *event);
+    DOM_EventTarget(void) { }
+  public:
+    virtual ~DOM_EventTarget() { }
 };
 
 

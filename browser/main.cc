@@ -1,3 +1,8 @@
+/*
+ * Copyright 2024 Adrien Ricciardi
+ * This file is part of the queequeg distribution (https://github.com/rshadr/queequeg)
+ * See LICENSE for details
+ */
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -57,13 +62,14 @@ main(int argc, char *argv[])
   size_t file_size = st.st_size;
   char *file_data = static_cast<char *>(mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0));
 
-  if (file_data == (char *)(-1))
+  if (file_data == static_cast<char *>(MAP_FAILED))
     die("error: couldn't map file '%s'\n", file_path);
 
   close(fd);
   madvise(file_data, file_size, MADV_SEQUENTIAL);
 
   std::shared_ptr< DOM_Document> document = std::make_shared<DOM_Document>(DOM_DOCFORMAT_HTML);
+  document->node_document = std::static_pointer_cast<DOM_Document>(document->shared_from_this());
 
   html_parse_document(document, file_data, file_size);
 

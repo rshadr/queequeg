@@ -1,12 +1,19 @@
 #ifndef _queequeg_html_parser_common_hh_
 #define _queequeg_html_parser_common_hh_
 
+/*
+ * Copyright 2024 Adrien Ricciardi
+ * This file is part of the queequeg distribution (https://github.com/rshadr/queequeg)
+ * See LICENSE for details
+ */
+
 #include <memory>
 #include <vector>
 #include <list>
 #include <string>
 
-#include <infra/string.h>
+#include <string.h>
+
 #include <infra/namespace.h>
 
 #include "dom/core/node.hh"
@@ -34,9 +41,15 @@ enum token_type {
 
 
 struct doctype_token {
-  InfraString *name;
-  InfraString *public_id;
-  InfraString *system_id;
+  doctype_token() {
+    this->public_id_missing = false;
+    this->system_id_missing = false;
+    this->force_quirks_flag = false;
+  }
+
+  std::string name;
+  std::string public_id;
+  std::string system_id;
 
   bool public_id_missing;
   bool system_id_missing;
@@ -45,7 +58,15 @@ struct doctype_token {
 
 
 struct tag_token {
-  InfraString *tagname;
+  tag_token() {
+    this->name_space = INFRA_NAMESPACE_HTML;
+    this->local_name = 0;
+
+    this->self_closing_flag = false;
+    this->ack_self_closing_flag_ = false;
+  }
+
+  std::string tag_name;
   // InfraStack *attrs;
   enum InfraNamespace name_space;
   uint16_t local_name;
@@ -56,17 +77,16 @@ struct tag_token {
 
 
 union token_data {
-  InfraString *         comment;
+  std::string           comment;
   struct doctype_token  doctype;
   struct tag_token      tag;
   char32_t              ch;
 };
 
 
-class InsertionLocation {
-  public:
-    std::shared_ptr< DOM_Node> parent;
-    std::shared_ptr< DOM_Node> child;
+struct InsertionLocation {
+  std::shared_ptr< DOM_Node> parent;
+  std::shared_ptr< DOM_Node> child;
 };
 
 
@@ -188,8 +208,8 @@ class Tokenizer {
 
     struct doctype_token doctype;
     struct tag_token tag;
-    InfraString *tmpbuf;
-    InfraString *comment;
+    std::u32string temp_buffer;
+    std::string comment;
     uintmax_t char_ref;
 
     enum tokenizer_state state;
@@ -205,14 +225,26 @@ class Tokenizer {
 
     [[nodiscard]] bool match(char const *s, size_t slen);
 
+    [[nodiscard]]
+    bool match(char const *c_str)
+    {
+      return this->match(c_str, strlen(c_str));
+    }
+
     [[nodiscard]] bool match_insensitive(char const *s, size_t slen);
+
+    [[nodiscard]]
+    bool match_insensitive(char const *c_str)
+    {
+      return this->match_insensitive(c_str, strlen(c_str));
+    }
 
     void error(char const *errstr);
 
     bool have_appropriate_end_tag(void) const;
 
     inline bool
-    char_ref_in_attr(void) const
+    is_char_ref_in_attr(void) const
     {
       return (this->ret_state == ATTR_VALUE_DOUBLE_QUOTED_STATE
            || this->ret_state == ATTR_VALUE_SINGLE_QUOTED_STATE
@@ -245,9 +277,13 @@ class Tokenizer {
     [[nodiscard]] bool match_fn_(int (*cmp) (char const *, char const *, size_t),
                                  char const *s,
                                  size_t slen);
+
     void destroy_tag_(void);
+
     void create_tag_(enum token_type tag_type);
+
     void destroy_doctype_(void);
+
     void emit_token_(union token_data *token_data, enum token_type token_type);
 
     static const state_handler_cb_t k_state_handlers_[NUM_STATES];
@@ -282,7 +318,7 @@ enum insertion_mode {
   AFTER_FRAMESET_MODE,
   AFTER_AFTER_BODY_MODE,
   AFTER_AFTER_FRAMESET_MODE,
-  // IN_FOREIGN_CONTENT_MODE,
+  IN_FOREIGN_CONTENT_MODE,
 
   NUM_MODES
 };
@@ -319,6 +355,8 @@ class TreeBuilder {
     std::vector< std::shared_ptr< DOM_Element>> open_elements;
     std::list< std::shared_ptr< DOM_Element>> formatting_elements;
 
+    std::vector< enum insertion_mode> template_modes;
+
     enum insertion_mode mode;
     enum insertion_mode original_mode;
 
@@ -341,17 +379,12 @@ class TreeBuilder {
     void error(void);
 
 
-#if 0
-    inline void
-    push_open_element(std::shared_ptr< DOM_Element> element)
+    inline enum insertion_mode
+    current_template_mode(void)
     {
-      this->open_elements.push_back(element);
+      /* XXX: maybe throws an exception? */
+      return this->template_modes.back();
     }
-
-
-    inline std::shared_ptr< DOM_Element>
-    pop_open_element2
-#endif
 
 
     inline std::shared_ptr< DOM_Element>
@@ -387,15 +420,16 @@ class TreeBuilder {
 
     void insert_character(char32_t ch);
 
-    void insert_comment(InfraString *data, InsertionLocation where);
+    void insert_comment(std::string *data, InsertionLocation where);
 
     inline void
-    insert_comment(InfraString *data)
+    insert_comment(std::string *data)
     {
       this->insert_comment(data, this->appropriate_insertion_place());
     }
 
     [[nodiscard]] enum treebuilder_status generic_raw_text_parse(struct tag_token *tag);
+
     [[nodiscard]] enum treebuilder_status generic_rcdata_parse(struct tag_token *tag);
 
 

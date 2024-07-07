@@ -20,7 +20,11 @@ html_parse_document(std::shared_ptr< DOM_Document> document,
   tokenizer.treebuilder = &treebuilder;
   treebuilder.tokenizer = &tokenizer;
 
+  document->parser_status = DOM_DOCUMENT_PARSER_STATUS_RUNNING;
+
   tokenizer.run();
+
+  document->parser_status = DOM_DOCUMENT_PARSER_STATUS_DONE;
 
   return 0;
 }

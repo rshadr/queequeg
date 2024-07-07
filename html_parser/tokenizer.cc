@@ -22,28 +22,12 @@ Tokenizer::Tokenizer(char const *input, size_t input_len)
 
   this->input.p   = input;
   this->input.end = &input[input_len];
-
-  this->doctype = { };
-  this->tag = { };
-
-  this->tmpbuf = infra_string_create();
-  this->comment = infra_string_create();
-
-  printf("number of states: %d\n", static_cast<int>(NUM_STATES));
-  printf("markup_decl_open_state: %d\n", static_cast<int>(MARKUP_DECL_OPEN_STATE));
-  printf("jump table: %zu\n", sizeof (Tokenizer::k_state_handlers_));
-  printf("jump table entry 0: %zu\n", sizeof (Tokenizer::k_state_handlers_[0]));
 }
 
 
 Tokenizer::~Tokenizer()
 {
-  this->destroy_doctype_();
   this->destroy_tag_();
-
-  infra_string_clearref(&this->tmpbuf);
-
-  infra_string_clearref(&this->comment);
 }
 
 
@@ -147,11 +131,10 @@ Tokenizer::destroy_doctype_(void)
 {
   struct doctype_token *doctype = &this->doctype;
 
-  infra_string_clearref(&doctype->name);
-  infra_string_clearref(&doctype->system_id);
-  infra_string_clearref(&doctype->public_id);
+  doctype->name.clear();
+  doctype->public_id.clear();
+  doctype->system_id.clear();
 
-  memset(doctype, 0, sizeof (*doctype));
 }
 
 
@@ -160,16 +143,6 @@ Tokenizer::create_doctype(void)
 {
   this->destroy_doctype_();
   struct doctype_token *doctype = &this->doctype;
-
-#if 0
-  infra_string_zero(doctype->name);
-  infra_string_zero(doctype->system_id);
-  infra_string_zero(doctype->public_id);
-#endif
-
-  doctype->name = infra_string_create();
-  doctype->system_id = infra_string_create();
-  doctype->public_id = infra_string_create();
 
   doctype->public_id_missing = false;
   doctype->system_id_missing = false;
@@ -183,9 +156,8 @@ Tokenizer::destroy_tag_(void)
 {
   struct tag_token *tag = &this->tag;
 
-  infra_string_clearref(&tag->tagname);
+  tag->tag_name.clear();
 
-  memset(tag, 0, sizeof (*tag));
 }
 
 
@@ -196,9 +168,9 @@ Tokenizer::create_tag_(enum token_type tag_type)
 
   struct tag_token *tag = &this->tag;
 
-  tag->tagname = infra_string_create();
-  tag->local_name = 0;
   tag->name_space = INFRA_NAMESPACE_HTML;
+  tag->local_name = 0;
+
   tag->self_closing_flag = false;
   tag->ack_self_closing_flag_ = false;
 
@@ -223,7 +195,7 @@ Tokenizer::create_end_tag(void)
 void
 Tokenizer::create_comment(void)
 {
-  infra_string_zero(this->comment);
+  this->comment.clear();
 }
 
 
@@ -287,7 +259,7 @@ Tokenizer::emit_current_tag(void)
 void
 Tokenizer::emit_current_comment(void)
 {
-  InfraString **comment = &this->comment;
+  std::string *comment = &this->comment;
 
   this->emit_token_(reinterpret_cast<union token_data *>(comment),
                     TOKEN_COMMENT);
@@ -309,8 +281,6 @@ void
 Tokenizer::run(void)
 {
   enum tokenizer_status status = TOKENIZER_STATUS_OK;
-
-  printf("hullo");
 
 
   while (status != TOKENIZER_STATUS_EOF) {

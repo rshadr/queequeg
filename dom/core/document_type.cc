@@ -1,4 +1,9 @@
-#include <infra/string.h>
+/*
+ * Copyright 2024 Adrien Ricciardi
+ * This file is part of the queequeg distribution (https://github.com/rshadr/queequeg)
+ * See LICENSE for details
+ */
+#include <stdio.h>
 
 #include "dom/core/document_type.hh"
 
@@ -11,10 +16,6 @@ DOM_DocumentType::DOM_DocumentType(std::shared_ptr< DOM_Document> node_document)
 
 DOM_DocumentType::~DOM_DocumentType()
 {
-
-  infra_string_clearref(&this->name);
-  infra_string_clearref(&this->public_id);
-  infra_string_clearref(&this->system_id);
-
+  printf("Destroying doctype!\n");
 }
 

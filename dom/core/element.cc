@@ -1,3 +1,8 @@
+/*
+ * Copyright 2024 Adrien Ricciardi
+ * This file is part of the queequeg distribution (https://github.com/rshadr/queequeg)
+ * See LICENSE for details
+ */
 #include "dom/core/element.hh"
 
 

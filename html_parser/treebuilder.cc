@@ -10,14 +10,16 @@
 #include "html_parser/common.hh"
 #include "dom/core/document.hh"
 
-/*
- * XXX: manage stack memory and element references
- */
+#define TREEBUILDER_PROCESS_TOKENS
+// #undef TREEBUILDER_PROCESS_TOKENS
+
 
 TreeBuilder::TreeBuilder(std::shared_ptr< DOM_Document> document)
 {
 
   this->document = document;
+
+  this->mode = INITIAL_MODE;
 
   this->flags = {
     .fragment_parse   = false,
@@ -41,6 +43,7 @@ void
 TreeBuilder::process_token(union token_data *token_data,
                            enum token_type token_type)
 {
+#ifdef TREEBUILDER_PROCESS_TOKENS
   enum treebuilder_status status;
 
 
@@ -57,7 +60,7 @@ TreeBuilder::process_token(union token_data *token_data,
     assert( TreeBuilder::k_insertion_mode_handlers_[this->mode] != nullptr );
     status = TreeBuilder::k_insertion_mode_handlers_[this->mode](this, token_data, token_type);
   } while (status == TREEBUILDER_STATUS_REPROCESS);
-
+#endif
 }
 
 
@@ -154,7 +157,7 @@ TreeBuilder::insert_character(char32_t ch)
 
 
 void
-TreeBuilder::insert_comment(InfraString *data,
+TreeBuilder::insert_comment(std::string *data,
                             InsertionLocation where)
 {
   // if (where.parent == nullptr)

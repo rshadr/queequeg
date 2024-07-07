@@ -30,6 +30,8 @@ class DOM_Node : public DOM_EventTarget {
   protected:
     DOM_Node(std::shared_ptr<DOM_Document> node_document,
              enum dom_node_type node_type);
+  public:
+    virtual ~DOM_Node() { }
 
   public:
     std::weak_ptr< DOM_Document> node_document;
@@ -43,10 +45,6 @@ class DOM_Node : public DOM_EventTarget {
                      bool supp_observers = false);
 
     void append_node(std::shared_ptr< DOM_Node> node, bool supp_observers = false);
-
-
-  protected:
-    typedef void (DOM_Node::*children_changed_cb_t) (void);
 };
 
 

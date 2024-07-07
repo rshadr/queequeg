@@ -1,32 +1,44 @@
 /*
  * Copyright (c) 2024 Adrien Ricciardi
+ *
  * This file is part of the queequeg distribution available at:
  *  https://github.com/rshadr/queequeg
+ *
  * See LICENSE for details
+ *
  *
  * File: html_parser/tokenizer_states.cc
  *
- * Implements the handlers for each tokenizer state, as required by the HTML
- * parsing specification. This file gets included by html_parser/parser.c
- * during compilation.
  *
+ *  Description:
+ *
+ * This file implements handlers for the states of the HTML tokenizer. They are
+ * grouped together in a jump table (Tokenizer::k_state_handlers_) and accessed
+ * by the tokenizer main loop from there correspondingly.
+ *
+ * When a state emits tokens, they are immediately processed by the connected
+ * TreeBuilder instance.
+ *
+ *
+ *  TODO:
+ * - Attribute support
+ * - Handle named character references properly
+ * - Remove all uses of 'InfraString' and replace with 'std::string'
+ * - Scripting support
  */
 #include <unordered_map>
 
-// #include <uchar.h>
 #include <stdio.h>
 
 #define INFRA_SHORT_NAMES
 #include <infra/util.h>
 #include <infra/ascii.h>
 #include <infra/unicode.h>
-#include <infra/string.h>
+
+#include "qglib/unicode.hh"
 
 #include "html_parser/common.hh"
 
-
-#define S(cstring) \
-  (cstring), sizeof (cstring) - 1
 
 
 static enum tokenizer_status
@@ -62,7 +74,6 @@ rcdata_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '&':
-      printf("amp.\n");
       tokenizer->ret_state = RCDATA_STATE;
       tokenizer->state = CHAR_REF_STATE;
       return TOKENIZER_STATUS_OK;
@@ -223,7 +234,7 @@ static enum tokenizer_status
 tag_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
-    infra_string_put_char(tokenizer->tag.tagname, c|0x20);
+    QueequegLib::append_c32_as_utf8(&tokenizer->tag.tag_name, c|0x20);
     return TOKENIZER_STATUS_OK;
   }
 
@@ -243,7 +254,7 @@ tag_name_state(Tokenizer *tokenizer, char32_t c)
 
     case '\0':
       tokenizer->error("unexpected-null-character");
-      infra_string_put_unicode(tokenizer->tag.tagname, 0xFFFD);
+      QueequegLib::append_c32_as_utf8(&tokenizer->tag.tag_name, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
@@ -251,7 +262,7 @@ tag_name_state(Tokenizer *tokenizer, char32_t c)
       return tokenizer->emit_eof();
 
     default:
-      infra_string_put_char(tokenizer->tag.tagname, c);
+      QueequegLib::append_c32_as_utf8(&tokenizer->tag.tag_name, c);
       return TOKENIZER_STATUS_OK;
   }
 }
@@ -262,7 +273,7 @@ rcdata_lt_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '/':
-      infra_string_zero(tokenizer->tmpbuf);
+      tokenizer->temp_buffer.clear();
       tokenizer->state = RCDATA_END_TAG_OPEN_STATE;
       return TOKENIZER_STATUS_OK;
 
@@ -296,14 +307,14 @@ static enum tokenizer_status
 rcdata_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
-    infra_string_put_char(tokenizer->tag.tagname, c|0x20);
-    infra_string_put_char(tokenizer->tmpbuf, c);
+    QueequegLib::append_c32_as_utf8(&tokenizer->tag.tag_name, c|0x20);
+    tokenizer->temp_buffer.push_back(c);
     return TOKENIZER_STATUS_OK;
   }
 
   if (ascii_is_lower_alpha(c)) {
-    infra_string_put_char(tokenizer->tag.tagname, c);
-    infra_string_put_char(tokenizer->tmpbuf, c);
+    QueequegLib::append_c32_as_utf8(&tokenizer->tag.tag_name, c);
+    tokenizer->temp_buffer.push_back(c);
     return TOKENIZER_STATUS_OK;
   }
 
@@ -343,7 +354,7 @@ rawtext_lt_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '/':
-      infra_string_zero(tokenizer->tmpbuf);
+      tokenizer->temp_buffer.clear();
       tokenizer->state = RAWTEXT_END_TAG_OPEN_STATE;
       return TOKENIZER_STATUS_OK;
 
@@ -376,14 +387,14 @@ static enum tokenizer_status
 rawtext_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
-    infra_string_put_char(tokenizer->tag.tagname, c|0x20);
-    infra_string_put_char(tokenizer->tmpbuf, c);
+    QueequegLib::append_c32_as_utf8(&tokenizer->tag.tag_name, c|0x20);
+    tokenizer->temp_buffer.push_back(c);
     return TOKENIZER_STATUS_OK;
   }
 
   if (ascii_is_lower_alpha(c)) {
-    infra_string_put_char(tokenizer->tag.tagname, c);
-    infra_string_put_char(tokenizer->tmpbuf, c);
+    QueequegLib::append_c32_as_utf8(&tokenizer->tag.tag_name, c);
+    tokenizer->temp_buffer.push_back(c);
     return TOKENIZER_STATUS_OK;
   }
 
@@ -391,13 +402,13 @@ rawtext_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
     case '\t': case '\n': case '\f': case ' ':
       if (tokenizer->have_appropriate_end_tag()) {
         tokenizer->state = BEFORE_ATTR_NAME_STATE;
-        return TOKENIZER_STATUS_OK;;
+        return TOKENIZER_STATUS_OK;
       } else goto anything_else;
 
     case '/':
       if (tokenizer->have_appropriate_end_tag()) {
         tokenizer->state = SELF_CLOSING_START_TAG_STATE;
-        return TOKENIZER_STATUS_OK;;
+        return TOKENIZER_STATUS_OK;
       } else goto anything_else;
 
     case '>':
@@ -423,7 +434,7 @@ script_lt_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '/':
-      infra_string_zero(tokenizer->tmpbuf);
+      tokenizer->temp_buffer.clear();
       tokenizer->state = SCRIPT_END_TAG_OPEN_STATE;
       return TOKENIZER_STATUS_OK;
 
@@ -463,14 +474,14 @@ static enum tokenizer_status
 script_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
-    infra_string_put_char(tokenizer->tag.tagname, c|0x20);
-    infra_string_put_char(tokenizer->tmpbuf, c);
+    QueequegLib::append_c32_as_utf8(&tokenizer->tag.tag_name, c|0x20);
+    tokenizer->temp_buffer.push_back(c);
     return TOKENIZER_STATUS_OK;
   }
 
   if (ascii_is_lower_alpha(c)) {
-    infra_string_put_char(tokenizer->tag.tagname, c);
-    infra_string_put_char(tokenizer->tmpbuf, c);
+    QueequegLib::append_c32_as_utf8(&tokenizer->tag.tag_name, c);
+    tokenizer->temp_buffer.push_back(c);
     return TOKENIZER_STATUS_OK;
   }
 
@@ -636,7 +647,7 @@ static enum tokenizer_status
 script_escaped_lt_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alpha(c)) {
-    infra_string_zero(tokenizer->tmpbuf);
+    tokenizer->temp_buffer.clear();
     tokenizer->emit_character('<');
     tokenizer->state = SCRIPT_DOUBLE_ESCAPE_START_STATE;
     return TOKENIZER_STATUS_RECONSUME;
@@ -644,7 +655,7 @@ script_escaped_lt_state(Tokenizer *tokenizer, char32_t c)
 
   switch (c) {
     case '/':
-      infra_string_zero(tokenizer->tmpbuf);
+      tokenizer->temp_buffer.clear();
       tokenizer->state = SCRIPT_ESCAPED_END_TAG_OPEN_STATE;
       return TOKENIZER_STATUS_OK;
 
@@ -678,14 +689,14 @@ static enum tokenizer_status
 script_escaped_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
-    infra_string_put_char(tokenizer->tag.tagname, c|0x20);
-    infra_string_put_char(tokenizer->tmpbuf, c);
+    QueequegLib::append_c32_as_utf8(&tokenizer->tag.tag_name, c|0x20);
+    tokenizer->temp_buffer.push_back(c);
     return TOKENIZER_STATUS_OK;
   }
 
   if (ascii_is_lower_alpha(c)) {
-    infra_string_put_char(tokenizer->tag.tagname, c);
-    infra_string_put_char(tokenizer->tmpbuf, c);
+    QueequegLib::append_c32_as_utf8(&tokenizer->tag.tag_name, c);
+    tokenizer->temp_buffer.push_back(c);
     return TOKENIZER_STATUS_OK;
   }
 
@@ -724,20 +735,20 @@ static enum tokenizer_status
 script_double_escape_start_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
-    infra_string_put_char(tokenizer->tag.tagname, c|0x20);
-    infra_string_put_char(tokenizer->tmpbuf, c);
+    QueequegLib::append_c32_as_utf8(&tokenizer->tag.tag_name, c|0x20);
+    tokenizer->temp_buffer.push_back(c);
     return TOKENIZER_STATUS_OK;
   }
 
   if (ascii_is_lower_alpha(c)) {
-    infra_string_put_char(tokenizer->tag.tagname, c);
-    infra_string_put_char(tokenizer->tmpbuf, c);
+    QueequegLib::append_c32_as_utf8(&tokenizer->tag.tag_name, c);
+    tokenizer->temp_buffer.push_back(c);
     return TOKENIZER_STATUS_OK;
   }
 
   switch (c) {
     case '\t': case '\n': case '\f': case ' ': case '/': case '>':
-      if (!strcmp("script", tokenizer->tmpbuf->data))
+      if (!tokenizer->temp_buffer.compare(U"script"))
         tokenizer->state = SCRIPT_DOUBLE_ESCAPED_STATE;
       else
         tokenizer->state = SCRIPT_ESCAPED_STATE;
@@ -854,7 +865,7 @@ script_double_escaped_lt_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '/':
-      infra_string_zero(tokenizer->tmpbuf);
+      tokenizer->temp_buffer.clear();
       tokenizer->state = SCRIPT_DOUBLE_ESCAPE_END_STATE;
       tokenizer->emit_character('/');
       return TOKENIZER_STATUS_OK;
@@ -870,20 +881,20 @@ static enum tokenizer_status
 script_double_escape_end_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
-    infra_string_put_char(tokenizer->tmpbuf, c|0x20);
+    tokenizer->temp_buffer.push_back(c|0x20);
     tokenizer->emit_character(c);
     return TOKENIZER_STATUS_OK;
   }
 
   if (ascii_is_lower_alpha(c)) {
-    infra_string_put_char(tokenizer->tmpbuf, c);
+    tokenizer->temp_buffer.push_back(c);
     tokenizer->emit_character(c);
     return TOKENIZER_STATUS_OK;
   }
 
   switch (c) {
     case '\t': case '\n': case '\f': case ' ': case '/': case '>':
-      if (!strcmp("script", tokenizer->tmpbuf->data))
+      if (!tokenizer->temp_buffer.compare(U"script"))
         tokenizer->state = SCRIPT_ESCAPED_STATE;
       else
         tokenizer->state = SCRIPT_DOUBLE_ESCAPED_STATE;
@@ -1179,11 +1190,11 @@ bogus_comment_state(Tokenizer *tokenizer, char32_t c)
 
     case '\0':
       tokenizer->error("unexpected-null-character");
-      infra_string_put_unicode(tokenizer->comment, 0xFFFD);
+      QueequegLib::append_c32_as_utf8(&tokenizer->comment, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     default:
-      infra_string_put_unicode(tokenizer->comment, c);
+      QueequegLib::append_c32_as_utf8(&tokenizer->comment, c);
       return TOKENIZER_STATUS_OK;
   }
 }
@@ -1194,18 +1205,18 @@ markup_decl_open_state(Tokenizer *tokenizer, char32_t c)
 {
   (void) c;
 
-  if (tokenizer->match(S("--"))) {
+  if (tokenizer->match("--")) {
     tokenizer->create_comment();
     tokenizer->state = COMMENT_START_STATE;
     return TOKENIZER_STATUS_OK;
   }
 
-  if (tokenizer->match_insensitive(S("DOCTYPE"))) {
+  if (tokenizer->match_insensitive("DOCTYPE")) {
     tokenizer->state = DOCTYPE_STATE;
     return TOKENIZER_STATUS_OK;
   }
 
-  if (tokenizer->match(S("[CDATA["))) {
+  if (tokenizer->match("[CDATA[")) {
     const std::shared_ptr< DOM_Element> node = tokenizer->treebuilder->adjusted_current_node();
 
     if (node != nullptr && node->name_space != INFRA_NAMESPACE_HTML) {
@@ -1269,7 +1280,7 @@ comment_start_dash_state(Tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     default:
-      infra_string_put_char(tokenizer->comment, '-');
+      tokenizer->comment.append("-");
       tokenizer->state = COMMENT_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -1281,7 +1292,7 @@ comment_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '<':
-      infra_string_put_char(tokenizer->comment, c);
+      QueequegLib::append_c32_as_utf8(&tokenizer->comment, c);
       tokenizer->state = COMMENT_LT_STATE;
       return TOKENIZER_STATUS_OK;
 
@@ -1291,7 +1302,7 @@ comment_state(Tokenizer *tokenizer, char32_t c)
 
     case '\0':
       tokenizer->error("unexpected-null-character");
-      infra_string_put_unicode(tokenizer->comment, 0xFFFD);
+      QueequegLib::append_c32_as_utf8(&tokenizer->comment, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
@@ -1299,7 +1310,7 @@ comment_state(Tokenizer *tokenizer, char32_t c)
       return tokenizer->emit_eof();
 
     default:
-      infra_string_put_unicode(tokenizer->comment, c);
+      QueequegLib::append_c32_as_utf8(&tokenizer->comment, c);
       return TOKENIZER_STATUS_OK;
   }
 }
@@ -1310,12 +1321,12 @@ comment_lt_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '!':
-      infra_string_put_char(tokenizer->comment, c);
+      QueequegLib::append_c32_as_utf8(&tokenizer->comment, c);
       tokenizer->state = COMMENT_LT_BANG_STATE;
       return TOKENIZER_STATUS_OK;
 
     case '<':
-      infra_string_put_char(tokenizer->comment, c);
+      QueequegLib::append_c32_as_utf8(&tokenizer->comment, c);
       return TOKENIZER_STATUS_OK;
 
     default:
@@ -1385,7 +1396,7 @@ comment_end_dash_state(Tokenizer *tokenizer, char32_t c)
       return tokenizer->emit_eof();
 
     default:
-      infra_string_put_char(tokenizer->comment, '-');
+      tokenizer->comment.append("-");
       tokenizer->state = COMMENT_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -1406,7 +1417,7 @@ comment_end_state(Tokenizer *tokenizer, char32_t c)
       return TOKENIZER_STATUS_OK;
 
     case '-':
-      infra_string_put_char(tokenizer->comment, '-');
+      tokenizer->comment.append("-");
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
@@ -1415,7 +1426,7 @@ comment_end_state(Tokenizer *tokenizer, char32_t c)
       return tokenizer->emit_eof();
 
     default:
-      infra_string_put_chunk(tokenizer->comment, S("--"));
+      tokenizer->comment.append("--");
       tokenizer->state = COMMENT_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -1427,7 +1438,7 @@ comment_end_bang_state(Tokenizer *tokenizer, char32_t c)
 {
   switch (c) {
     case '-':
-      infra_string_put_chunk(tokenizer->comment, S("--!"));
+      tokenizer->comment.append("--!");
       tokenizer->state = COMMENT_END_DASH_STATE;
       return TOKENIZER_STATUS_OK;
 
@@ -1443,7 +1454,7 @@ comment_end_bang_state(Tokenizer *tokenizer, char32_t c)
       return tokenizer->emit_eof();
 
     default:
-      infra_string_put_chunk(tokenizer->comment, S("--!"));
+      tokenizer->comment.append("--!");
       tokenizer->state = COMMENT_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -1480,7 +1491,7 @@ before_doctype_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
     tokenizer->create_doctype();
-    infra_string_put_char(tokenizer->doctype.name, c|0x20);
+    QueequegLib::append_c32_as_utf8(&tokenizer->doctype.name, c|0x20);
     tokenizer->state = DOCTYPE_NAME_STATE;
     return TOKENIZER_STATUS_OK;
   }
@@ -1492,7 +1503,7 @@ before_doctype_name_state(Tokenizer *tokenizer, char32_t c)
     case '\0':
       tokenizer->error("unexpected-null-character");
       tokenizer->create_doctype();
-      infra_string_put_unicode(tokenizer->doctype.name, 0xFFFD);
+      QueequegLib::append_c32_as_utf8(&tokenizer->doctype.name, 0xFFFD);
       tokenizer->state = DOCTYPE_NAME_STATE;
       return TOKENIZER_STATUS_OK;
 
@@ -1513,7 +1524,7 @@ before_doctype_name_state(Tokenizer *tokenizer, char32_t c)
 
     default:
       tokenizer->create_doctype();
-      infra_string_put_unicode(tokenizer->doctype.name, c);
+      QueequegLib::append_c32_as_utf8(&tokenizer->doctype.name, c);
       tokenizer->state = DOCTYPE_NAME_STATE;
       return TOKENIZER_STATUS_OK;
   }
@@ -1524,7 +1535,7 @@ static enum tokenizer_status
 doctype_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
-    infra_string_put_char(tokenizer->doctype.name, c|0x20);
+    QueequegLib::append_c32_as_utf8(&tokenizer->doctype.name, c|0x20);
     return TOKENIZER_STATUS_OK;
   }
 
@@ -1540,7 +1551,7 @@ doctype_name_state(Tokenizer *tokenizer, char32_t c)
 
     case '\0':
       tokenizer->error("unexpected-null-character");
-      infra_string_put_unicode(tokenizer->doctype.name, 0xFFFD);
+      QueequegLib::append_c32_as_utf8(&tokenizer->doctype.name, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
@@ -1550,7 +1561,7 @@ doctype_name_state(Tokenizer *tokenizer, char32_t c)
       return tokenizer->emit_eof();
 
     default:
-      infra_string_put_unicode(tokenizer->doctype.name, c);
+      QueequegLib::append_c32_as_utf8(&tokenizer->doctype.name, c);
       return TOKENIZER_STATUS_OK;
   }
 }
@@ -1561,12 +1572,12 @@ after_doctype_name_state(Tokenizer *tokenizer, char32_t c)
 {
   (void) c;
 
-  if (tokenizer->match_insensitive(S("PUBLIC"))) {
+  if (tokenizer->match_insensitive("PUBLIC")) {
     tokenizer->state = AFTER_DOCTYPE_PUBLIC_KEYWORD_STATE;
     return TOKENIZER_STATUS_OK;
   }
 
-  if (tokenizer->match_insensitive(S("SYSTEM"))) {
+  if (tokenizer->match_insensitive("SYSTEM")) {
     tokenizer->state = AFTER_DOCTYPE_SYSTEM_KEYWORD_STATE;
     return TOKENIZER_STATUS_OK;
   }
@@ -1686,7 +1697,7 @@ doctype_public_id_double_quoted_state(Tokenizer *tokenizer, char32_t c)
 
     case '\0':
       tokenizer->error("unexpected-null-character");
-      infra_string_put_unicode(tokenizer->doctype.public_id, 0xFFFD);
+      QueequegLib::append_c32_as_utf8(&tokenizer->doctype.public_id, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case '>':
@@ -1703,7 +1714,7 @@ doctype_public_id_double_quoted_state(Tokenizer *tokenizer, char32_t c)
       return tokenizer->emit_eof();
 
     default:
-      infra_string_put_unicode(tokenizer->doctype.public_id, c);
+      QueequegLib::append_c32_as_utf8(&tokenizer->doctype.public_id, c);
       return TOKENIZER_STATUS_OK;
   }
 }
@@ -1719,7 +1730,7 @@ doctype_public_id_single_quoted_state(Tokenizer *tokenizer, char32_t c)
 
     case '\0':
       tokenizer->error("unexpected-null-character");
-      infra_string_put_unicode(tokenizer->doctype.public_id, 0xFFFD);
+      QueequegLib::append_c32_as_utf8(&tokenizer->doctype.public_id, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case '>':
@@ -1735,7 +1746,7 @@ doctype_public_id_single_quoted_state(Tokenizer *tokenizer, char32_t c)
       return tokenizer->emit_eof();
 
     default:
-      infra_string_put_unicode(tokenizer->doctype.public_id, c);
+      QueequegLib::append_c32_as_utf8(&tokenizer->doctype.public_id, c);
       return TOKENIZER_STATUS_OK;
   }
 }
@@ -1909,7 +1920,7 @@ doctype_system_id_double_quoted_state(Tokenizer *tokenizer, char32_t c)
 
     case '\0':
       tokenizer->error("unexpected-null-character");
-      infra_string_put_unicode(tokenizer->doctype.system_id, 0xFFFD);
+      QueequegLib::append_c32_as_utf8(&tokenizer->doctype.system_id, c);
       return TOKENIZER_STATUS_OK;
 
     case '>':
@@ -1926,7 +1937,7 @@ doctype_system_id_double_quoted_state(Tokenizer *tokenizer, char32_t c)
       return tokenizer->emit_eof();
 
     default:
-      infra_string_put_unicode(tokenizer->doctype.system_id, c);
+      QueequegLib::append_c32_as_utf8(&tokenizer->doctype.system_id, c);
       return TOKENIZER_STATUS_OK;
   }
 }
@@ -1942,7 +1953,7 @@ doctype_system_id_single_quoted_state(Tokenizer *tokenizer, char32_t c)
 
     case '\0':
       tokenizer->error("unexpected-null-character");
-      infra_string_put_unicode(tokenizer->doctype.system_id, 0xFFFD);
+      QueequegLib::append_c32_as_utf8(&tokenizer->doctype.system_id, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case '>':
@@ -1959,7 +1970,7 @@ doctype_system_id_single_quoted_state(Tokenizer *tokenizer, char32_t c)
       return tokenizer->emit_eof();
 
     default:
-      infra_string_put_unicode(tokenizer->doctype.system_id, c);
+      QueequegLib::append_c32_as_utf8(&tokenizer->doctype.system_id, c);
       return TOKENIZER_STATUS_OK;
   }
 }
@@ -2080,7 +2091,7 @@ char_ref_state(Tokenizer *tokenizer, char32_t c)
 
   switch (c) {
     case '#':
-      infra_string_put_char(tokenizer->tmpbuf, c);
+      tokenizer->temp_buffer.push_back(c);
       tokenizer->state = NUMERIC_CHAR_REF_STATE;
       return TOKENIZER_STATUS_OK;
 
@@ -2115,11 +2126,14 @@ named_char_ref_state(Tokenizer *tokenizer, char32_t c)
       /* -> If there is a match: */
       tokenizer->input.p = p + entlen;
 
+#if 0
+      /* XXX: character reference! */
       infra_string_put_chunk(tokenizer->tmpbuf,
         k_named_char_refs_[i].name,
         k_named_char_refs_[i].name_len);
+#endif
 
-      if (tokenizer->char_ref_in_attr()
+      if (tokenizer->is_char_ref_in_attr()
        && (tokenizer->input.p[-1] != ';')
        && ((tokenizer->input.p[0] == '=')
         || ascii_is_alnum(tokenizer->input.p[0])))
@@ -2138,10 +2152,14 @@ named_char_ref_state(Tokenizer *tokenizer, char32_t c)
         if (tokenizer->input.p[-1] != ';')
           tokenizer->error("missing-semicolon-after-character-reference");
 
-        infra_string_zero(tokenizer->tmpbuf);
+        tokenizer->temp_buffer.clear();
+
+#if 0
+        /* XXX: character reference! */
         infra_string_put_chunk(tokenizer->tmpbuf,
           k_named_char_refs_[i].utf8,
           k_named_char_refs_[i].utf8_len);
+#endif
         /* XXX FLUSH */
 
         tokenizer->state = tokenizer->ret_state;
@@ -2163,7 +2181,7 @@ static enum tokenizer_status
 ambiguous_ampersand_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alnum(c)) {
-    if (tokenizer->char_ref_in_attr())
+    if (tokenizer->is_char_ref_in_attr())
       (void)0; // infra_string_put_char(tokenizer->attr, c);
     else
       tokenizer->emit_character(c);
@@ -2190,7 +2208,7 @@ numeric_char_ref_state(Tokenizer *tokenizer, char32_t c)
 
   switch (c) {
     case 'x': case 'X':
-      infra_string_put_char(tokenizer->tmpbuf, c);
+      tokenizer->temp_buffer.push_back(c);
       tokenizer->state = HEX_CHAR_REF_START_STATE;
       return TOKENIZER_STATUS_OK;
 
@@ -2291,38 +2309,7 @@ dec_char_ref_state(Tokenizer *tokenizer, char32_t c)
 }
 
 
-#if 0
-static const char32_t k_numeric_subst[] = {
-  [0x80] = 0x20AC, /* EURO SIGN */
-  [0x82] = 0x201A, /* SINGLE LOW-9 QUOTATION MARK */
-  [0x83] = 0x0192, /* LATIN SMALL LETTER F WITH HOOK */
-  [0x84] = 0x201E, /* DOUBLE LOW-9 QUOTATION MARK */
-  [0x85] = 0x2026, /* HORIZONTAL ELLIPSIS */
-  [0x86] = 0x2020, /* DAGGER */
-  [0x87] = 0x2021, /* DOUBLE DAGGER */
-  [0x88] = 0x02C6, /* MODIFIER LETTER CIRCUMFLEX ACCENT */
-  [0x89] = 0x2030, /* PER MILLE SIGN */
-  [0x8A] = 0x0160, /* LATIN CAPITAL LETTER S WITH CARON */
-  [0x8B] = 0x2039, /* SINGLE LEFT-POINTING ANGLE QUOTATION MARK */
-  [0x8C] = 0x0152, /* LATIN CAPITAL LIGATURE OE */
-  [0x8E] = 0x017D, /* LATIN SMALL LETTER Z WITH CARON */
-  [0x91] = 0x2018, /* LEFT SINGLE QUOTATION MARK */
-  [0x92] = 0x2019, /* RIGHT SINGLE QUOTATION MARK */
-  [0x93] = 0x201C, /* LEFT DOUBLE QUOTATION MARK */
-  [0x94] = 0x201D, /* RIGHT DOUBLE QUOTATION MARK */
-  [0x95] = 0x2022, /* BULLET */
-  [0x96] = 0x2013, /* EN DASH */
-  [0x97] = 0x2014, /* EM DASH */
-  [0x98] = 0x02DC, /* SMALL TILDE */
-  [0x9A] = 0x0161, /* LATIN SMALL LETTER S WITH CARON */
-  [0x9B] = 0x203A, /* SINGLE RIGHT-POINTING ANGLE QUOTATION MARK */
-  [0x9C] = 0x0153, /* LATIN SMALL LIGATURE OE */
-  [0x9E] = 0x017E, /* LATIN SMALL LETTER W WITH CARON */
-  [0x9F] = 0x0178, /* LATIN CAPITAL LETTERY WITH DIARESIS */
-};
-#endif
-
-static const std::unordered_map<char32_t, char32_t> k_numeric_subst = {
+static const std::unordered_map<char32_t, char32_t> k_numeric_subst_ = {
   { 0x80, 0x20AC }, /* EURO SIGN */
   { 0x82, 0x201A }, /* SINGLE LOW-9 QUOTATION MARK */
   { 0x83, 0x0192 }, /* LATIN SMALL LETTER F WITH HOOK */
@@ -2357,13 +2344,12 @@ numeric_char_ref_end_state(Tokenizer *tokenizer, char32_t ch)
 {
   (void) ch;
 
-  char32_t code;
-
   if (tokenizer->char_ref > 0x10FFFF) {
     tokenizer->error("character-reference-outside-of-unicode-range");
     tokenizer->char_ref = 0xFFFD;
   }
-  code = tokenizer->char_ref;
+
+  char32_t code = tokenizer->char_ref;
 
   if (code == 0x00) {
     tokenizer->error("null-character-reference");
@@ -2372,12 +2358,12 @@ numeric_char_ref_end_state(Tokenizer *tokenizer, char32_t ch)
     /* XXX */
   } else if (unicode_is_noncharacter(code)) {
     /* XXX */
-  } else if (k_numeric_subst.contains(code)) {
-    code = k_numeric_subst.at(code);
+  } else if (k_numeric_subst_.contains(code)) {
+    code = k_numeric_subst_.at(code);
   }
 
-  infra_string_zero(tokenizer->tmpbuf);
-  infra_string_put_unicode(tokenizer->tmpbuf, code);
+  tokenizer->temp_buffer.clear();
+  tokenizer->temp_buffer.push_back(code);
   /* XXX flush */
 
   tokenizer->state = tokenizer->ret_state;

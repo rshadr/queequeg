@@ -1,12 +1,30 @@
+/*
+ * Copyright 2024 Adrien Ricciardi
+ * This file is part of the queequeg distribution (https://github.com/rshadr/queequeg)
+ * See LICENSE for details
+ */
 #include "dom/core/element.hh"
 
 #include "dom/core/document.hh"
 
 
 DOM_Document::DOM_Document(enum dom_document_format format)
-: DOM_Node(std::static_pointer_cast< DOM_Document>(this->shared_from_this()), DOM_NODETYPE_DOCUMENT)
+: DOM_Node(nullptr, DOM_NODETYPE_DOCUMENT)
 {
+  // this->node_document = std::static_pointer_cast<DOM_Document>(this->shared_from_this());
+  /*
+   * can't be called in constructor...
+   */
   this->document_format = format;
+
+  this->parser_status = DOM_DOCUMENT_PARSER_STATUS_UNAVAILABLE;
+
+  this->quirks_mode = DOM_QUIRKSMODE_NO_QUIRKS;
+}
+
+
+DOM_Document::~DOM_Document()
+{
 }
 
 

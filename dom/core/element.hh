@@ -21,6 +21,7 @@ enum dom_custom_element_state {
 class DOM_Element : public DOM_Node {
   public:
     DOM_Element(std::shared_ptr< DOM_Document> document);
+    virtual ~DOM_Element() { }
 
   public:
     int16_t local_name;

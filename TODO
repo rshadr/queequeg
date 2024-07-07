@@ -1,0 +1,4 @@
+[ ] Fix grapheme.h ABI caveat
+[ ] Keep internal index variable for child node within parent node
+[ ] Better protect DOM access
+
