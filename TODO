@@ -2,3 +2,8 @@
 [ ] Keep internal index variable for child node within parent node
 [ ] Better protect DOM access
 
+    ===< HTML PARSER >===
+[ ] struct tag_token : local_name -> html_index (clarity)
+[ ] class DOM_Element : local_name -> local_index (clarity)
+[ ] Should built-in elements get inserted without checking the string/only the local_name?
+

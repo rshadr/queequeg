@@ -65,8 +65,8 @@ struct doctype_token {
  * the correct MathML/SVG element index.
  */
 enum html_element_index_parser_internal : uint16_t {
-  HTML_ELEMENT_MATH = NUM_HTML_BUILTIN_ELEMENTS,
-  HTML_ELEMENT_SVG,
+  HTML_ELEMENT_MATH_ = NUM_HTML_BUILTIN_ELEMENTS,
+  HTML_ELEMENT_SVG_,
 };
 
 
@@ -284,8 +284,6 @@ class Tokenizer {
                                  char const *s,
                                  size_t slen);
 
-    void destroy_tag_(void);
-
     void create_tag_(enum token_type tag_type);
 
     void destroy_doctype_(void);
@@ -363,7 +361,11 @@ class TreeBuilder {
     std::vector< std::shared_ptr< DOM_Element>> open_elements;
     std::list< std::shared_ptr< DOM_Element>> formatting_elements;
 
+    std::vector< char32_t> pending_table_characters;
+
     std::vector< enum insertion_mode> template_modes;
+
+    uint16_t script_nesting_level;
 
     enum insertion_mode mode;
     enum insertion_mode original_mode;
@@ -395,6 +397,9 @@ class TreeBuilder {
     }
 
 
+    void reset_insertion_mode_appropriately(void);
+
+
     inline std::shared_ptr< DOM_Element>
     current_node(void) const
     {
@@ -412,7 +417,17 @@ class TreeBuilder {
     }
 
 
-    InsertionLocation appropriate_insertion_place(std::shared_ptr< DOM_Node> override_target = nullptr);
+    bool is_special_element(std::shared_ptr< DOM_Element> element) const;
+
+
+    void push_to_active_formatting_elements(std::shared_ptr< DOM_Element> element);
+
+    void reconstruct_active_formatting_elements(void);
+
+    void acknowledge_self_closing_flag(struct tag_token *tag) const;
+
+
+    InsertionLocation appropriate_insertion_place(std::shared_ptr< DOM_Element> override_target = nullptr);
 
     [[nodiscard]] std::shared_ptr< DOM_Element>
     create_element_for_token(struct tag_token const *tag,
@@ -426,6 +441,7 @@ class TreeBuilder {
 
     std::shared_ptr< DOM_Element> insert_html_element(struct tag_token const *tag);
 
+    void insert_characters(std::vector< char32_t> *vch);
     void insert_character(char32_t ch);
 
     void insert_comment(std::string *data, InsertionLocation where);
@@ -440,8 +456,12 @@ class TreeBuilder {
 
     [[nodiscard]] enum treebuilder_status generic_rcdata_parse(struct tag_token *tag);
 
+    void generate_implied_end_tags(uint16_t exclude_html = 0);
+
 
   private:
+    void insert_character_array_(char32_t const *arr, size_t arr_len);
+
     [[nodiscard]] enum treebuilder_status tree_construction_dispatcher_(union token_data *token_data,
                                                                         enum token_type token_type);
 

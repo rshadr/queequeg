@@ -45,6 +45,14 @@ class DOM_Node : public DOM_EventTarget {
                      bool supp_observers = false);
 
     void append_node(std::shared_ptr< DOM_Node> node, bool supp_observers = false);
+
+  public:
+    inline bool
+    is_element(void)
+    {
+      return this->node_type == DOM_NODETYPE_ELEMENT;
+    }
+
 };
 
 

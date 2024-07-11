@@ -15,9 +15,13 @@
 #include "html_parser/common.hh"
 
 
+#define LOGF(...) \
+  fprintf(stderr, __VA_ARGS__)
+
+
 const std::unordered_map< std::string, uint16_t> Tokenizer::k_foreign_toplevel_elements_map_ = {
-  { "math", HTML_ELEMENT_MATH },
-  { "svg",  HTML_ELEMENT_SVG  },
+  { "math", HTML_ELEMENT_MATH_ },
+  { "svg",  HTML_ELEMENT_SVG_  },
 };
 
 
@@ -32,7 +36,6 @@ Tokenizer::Tokenizer(char const *input, size_t input_len)
 
 Tokenizer::~Tokenizer()
 {
-  this->destroy_tag_();
 }
 
 
@@ -171,22 +174,11 @@ Tokenizer::create_doctype(void)
 
 
 void
-Tokenizer::destroy_tag_(void)
+Tokenizer::create_tag_(enum token_type tag_type)
 {
   struct tag_token *tag = &this->tag;
 
   tag->tag_name.clear();
-
-}
-
-
-void
-Tokenizer::create_tag_(enum token_type tag_type)
-{
-  this->destroy_tag_();
-
-  struct tag_token *tag = &this->tag;
-
   tag->local_name = 0;
   tag->self_closing_flag = false;
   tag->ack_self_closing_flag_ = false;
@@ -266,7 +258,6 @@ Tokenizer::emit_current_tag(void)
 {
   struct tag_token *tag = &this->tag;
 
-
   /*
    * This step is only meant to speed up the parser when (re)processing tokens
    * multiple times; it is cheaper to hash once than string-compare often.
@@ -281,6 +272,8 @@ Tokenizer::emit_current_tag(void)
     tag->local_name = Tokenizer::k_foreign_toplevel_elements_map_.at(tag->tag_name);
   }
 
+  LOGF("emitting tag with tag_name '%s', local_name %d\n",
+    tag->tag_name.c_str(), tag->local_name);
 
   this->emit_token_(reinterpret_cast<union token_data *>(tag),
                     this->tag_type);
