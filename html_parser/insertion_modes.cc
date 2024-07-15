@@ -26,6 +26,37 @@
   fprintf(stderr, __VA_ARGS__)
 
 
+
+/*
+ * Forward declarations
+ */
+
+static enum treebuilder_status initial_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status before_html_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status before_head_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_head_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_head_noscript_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status after_head_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_body_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status text_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_table_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_table_text_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_caption_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_column_group_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_table_body_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_row_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_cell_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_select_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_select_in_table_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_template_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status after_body_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_frameset_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status after_frameset_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status after_after_body_mode(TreeBuilder *, union token_data *, enum token_type);
+static enum treebuilder_status in_foreign_content_mode(TreeBuilder *, union token_data *, enum token_type);
+
+
+
 static enum treebuilder_status
 initial_mode(TreeBuilder *treebuilder,
              union token_data *token_data,
@@ -209,8 +240,7 @@ before_head_mode(TreeBuilder *treebuilder,
     switch (tag->local_name)
     {
       case HTML_ELEMENT_HTML: {
-        /* XXX: process in body */
-        return TREEBUILDER_STATUS_OK;
+        return in_body_mode(treebuilder, token_data, token_type);
       }
 
 
@@ -287,8 +317,7 @@ in_head_mode(TreeBuilder *treebuilder,
     switch (tag->local_name)
     {
       case HTML_ELEMENT_HTML: {
-        /* XXX: process in body */
-        return TREEBUILDER_STATUS_OK;
+        return in_body_mode(treebuilder, token_data, token_type);
       }
 
 
@@ -298,7 +327,7 @@ in_head_mode(TreeBuilder *treebuilder,
 
         treebuilder->open_elements.pop_back();
 
-        /* XXX: ack self-closing flag */
+        treebuilder->acknowledge_self_closing_flag(tag);
 
         return TREEBUILDER_STATUS_OK;
       }
@@ -309,7 +338,7 @@ in_head_mode(TreeBuilder *treebuilder,
 
         treebuilder->open_elements.pop_back();
 
-        /* XXX: ack self-closing flag */
+        treebuilder->acknowledge_self_closing_flag(tag);
 
         /* ... */
 
@@ -372,6 +401,7 @@ in_head_mode(TreeBuilder *treebuilder,
   if (token_type == TOKEN_END_TAG) {
     struct tag_token *tag = &token_data->tag;
 
+
     switch (tag->local_name)
     {
       case HTML_ELEMENT_HEAD: {
@@ -431,8 +461,7 @@ in_head_noscript_mode(TreeBuilder *treebuilder,
     switch (tag->local_name) {
 
       case HTML_ELEMENT_HTML: {
-        /* XXX: process in body */
-        return TREEBUILDER_STATUS_OK;
+        return in_body_mode(treebuilder, token_data, token_type);
       }
 
 
@@ -537,8 +566,7 @@ after_head_mode(TreeBuilder *treebuilder,
     switch (tag->local_name) {
 
       case HTML_ELEMENT_HTML: {
-        /* XXX: process in body */
-        return TREEBUILDER_STATUS_OK;
+        return in_body_mode(treebuilder, token_data, token_type);
       }
 
 
@@ -638,8 +666,18 @@ after_head_mode(TreeBuilder *treebuilder,
 static void
 close_p_element(TreeBuilder *treebuilder)
 {
-  /* ... */
-  (void) treebuilder;
+  treebuilder->generate_implied_end_tags(HTML_ELEMENT_P);
+
+  if (!treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_P))
+    treebuilder->error();
+
+  std::shared_ptr< DOM_Element> popped;
+
+  do {
+    popped = treebuilder->open_elements.back();
+    treebuilder->open_elements.pop_back();
+  } while (!popped->has_html_element_index(HTML_ELEMENT_P));
+
 }
 
 
@@ -652,7 +690,7 @@ in_body_mode(TreeBuilder *treebuilder,
 
   /*
    * Even if not accessed, the variable is created here so that goto jumps
-   * can be done properly.
+   * can be done properly, i.e. this shouldn't result in a segfault.
    */
   struct tag_token *tag = &token_data->tag;
 
@@ -1556,9 +1594,13 @@ in_table_mode(TreeBuilder *treebuilder,
 
   anything_else: {
     treebuilder->error();
+
     treebuilder->flags.foster_parenting = true;
+
     enum treebuilder_status rc = in_body_mode(treebuilder, token_data, token_type);
+
     treebuilder->flags.foster_parenting = false;
+
     return rc;
   }
 

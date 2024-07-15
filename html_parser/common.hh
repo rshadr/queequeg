@@ -5,6 +5,12 @@
  * Copyright 2024 Adrien Ricciardi
  * This file is part of the queequeg distribution (https://github.com/rshadr/queequeg)
  * See LICENSE for details
+ *
+ * File: html_parser/common.hh
+ *
+ * Description:
+ * This file contains all that's necessary for the individual components to work
+ * together properly.
  */
 
 #include <memory>
@@ -25,9 +31,6 @@
 
 #include "html/elements.hh"
 
-/*
- * Header used internally by parser components
- */
 
 class Tokenizer;
 class TreeBuilder;
@@ -62,8 +65,9 @@ struct doctype_token {
  *
  * When inserting the corresponding tag tokens, they are transparently turned
  * into regular tokens with an std::string tag name which will translate to
- * the correct MathML/SVG element index.
+ * the correct MathML/SVG element index before element creation.
  */
+
 enum html_element_index_parser_internal : uint16_t {
   HTML_ELEMENT_MATH_ = NUM_HTML_BUILTIN_ELEMENTS,
   HTML_ELEMENT_SVG_,
@@ -80,6 +84,12 @@ struct tag_token {
 };
 
 
+/*
+ * TreeBuilder insertion modes receive a pointer to this union as an argument.
+ * All memory (string, tag, etc.) is managed externally, so don't play
+ * around with it more than necessary
+ */
+
 union token_data {
   std::string           comment;
   struct doctype_token  doctype;
@@ -88,6 +98,12 @@ union token_data {
 };
 
 
+/*
+ * This tuple struct is used for specifying position in the DOM tree. Pointers
+ * were consciously chosen over indices, because they may have changed in
+ * parallel, probably due to some scripting of bad taste; at that point,
+ * we don't even care anymore.
+ */
 struct InsertionLocation {
   std::shared_ptr< DOM_Node> parent;
   std::shared_ptr< DOM_Node> child;

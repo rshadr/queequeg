@@ -4,6 +4,7 @@
  * See LICENSE for details
  */
 #include <ranges>
+#include <set>
 
 #include <assert.h>
 
@@ -92,28 +93,213 @@ TreeBuilder::reset_insertion_mode_appropriately(void)
 {
   bool last = false;
 
-  for (std::shared_ptr< DOM_Element> node : std::ranges::views::reverse(this->open_elements))
+  for (std::shared_ptr< DOM_Element> elem : std::ranges::views::reverse(this->open_elements))
   {
     /*
      * Separate copy for the fragment case
      */
-    std::shared_ptr< DOM_Element> elem = node;
+    std::shared_ptr< DOM_Element> node = elem;
 
-    if (elem == this->open_elements.front())
+    if (node == this->open_elements.front())
       last = true;
 
     if (this->flags.fragment_parse)
-      elem = this->context;
+      node = this->context;
+
+
+    if (node->has_html_element_index(HTML_ELEMENT_SELECT)) {
+      /* ... */
+      this->mode = IN_SELECT_MODE;
+      return;
+    }
+
+
+    if ((node->has_html_element_index(HTML_ELEMENT_TD)
+      || node->has_html_element_index(HTML_ELEMENT_TH))
+     && !last) {
+      this->mode = IN_CELL_MODE;
+      return;
+    }
+
+
+    if (node->has_html_element_index(HTML_ELEMENT_TR)) {
+      this->mode = IN_ROW_MODE;
+      return;
+    }
+
+
+    if (node->has_html_element_index(HTML_ELEMENT_TBODY)
+     || node->has_html_element_index(HTML_ELEMENT_THEAD)
+     || node->has_html_element_index(HTML_ELEMENT_TFOOT)) {
+      this->mode = IN_TABLE_BODY_MODE;
+      return;
+    }
+
+
+    if (node->has_html_element_index(HTML_ELEMENT_CAPTION)) {
+      this->mode = IN_CAPTION_MODE;
+      return;
+    }
+
+
+    if (node->has_html_element_index(HTML_ELEMENT_COLGROUP)) {
+      this->mode = IN_COLUMN_GROUP_MODE;
+      return;
+    }
+
+
+    if (node->has_html_element_index(HTML_ELEMENT_TABLE)) {
+      this->mode = IN_TABLE_MODE;
+      return;
+    }
+
+
+    if (node->has_html_element_index(HTML_ELEMENT_TEMPLATE)) {
+      this->mode = this->template_modes.back();
+      return;
+    }
+
+
+    if (node->has_html_element_index(HTML_ELEMENT_HEAD)
+     && !last) {
+      this->mode = IN_HEAD_MODE;
+      return;
+    }
+
+
+    if (node->has_html_element_index(HTML_ELEMENT_BODY)) {
+      this->mode = IN_BODY_MODE;
+      return;
+    }
+
+
+    if (node->has_html_element_index(HTML_ELEMENT_FRAMESET)) {
+      /* fragment case */
+      this->mode = IN_FRAMESET_MODE;
+      return;
+    }
+
+
+    if (node->has_html_element_index(HTML_ELEMENT_HTML)) {
+      if (this->head == nullptr) {
+        this->mode = BEFORE_HEAD_MODE;
+        return;
+      }
+
+      this->mode = AFTER_HEAD_MODE;
+      return;
+    }
+
+
+    if (last) {
+      /* fragment case */
+      this->mode = IN_BODY_MODE;
+      return;
+    }
+
+
   }
 
+
+  // std::unreachable();
 }
+
+
+static const std::set<uint16_t> k_special_html_elements_set_ = {
+  HTML_ELEMENT_ADDRESS,
+  HTML_ELEMENT_APPLET,
+  HTML_ELEMENT_AREA,
+  HTML_ELEMENT_ARTICLE,
+  HTML_ELEMENT_ASIDE,
+  HTML_ELEMENT_BASE,
+  HTML_ELEMENT_BASEFONT,
+  HTML_ELEMENT_BGSOUND,
+  HTML_ELEMENT_BLOCKQUOTE,
+  HTML_ELEMENT_BODY,
+  HTML_ELEMENT_BR,
+  HTML_ELEMENT_BUTTON,
+  HTML_ELEMENT_CAPTION,
+  HTML_ELEMENT_CENTER,
+  HTML_ELEMENT_COL,
+  HTML_ELEMENT_COLGROUP,
+  HTML_ELEMENT_DD,
+  HTML_ELEMENT_DETAILS,
+  HTML_ELEMENT_DIR,
+  HTML_ELEMENT_DIV,
+  HTML_ELEMENT_DL,
+  HTML_ELEMENT_DT,
+  HTML_ELEMENT_EMBED,
+  HTML_ELEMENT_FIELDSET,
+  HTML_ELEMENT_FIGCAPTION,
+  HTML_ELEMENT_FIGURE,
+  HTML_ELEMENT_FOOTER,
+  HTML_ELEMENT_FORM,
+  HTML_ELEMENT_FRAME,
+  HTML_ELEMENT_FRAMESET,
+  HTML_ELEMENT_H1,
+  HTML_ELEMENT_H2,
+  HTML_ELEMENT_H3,
+  HTML_ELEMENT_H4,
+  HTML_ELEMENT_H5,
+  HTML_ELEMENT_H6,
+  HTML_ELEMENT_HEAD,
+  HTML_ELEMENT_HEADER,
+  HTML_ELEMENT_HGROUP,
+  HTML_ELEMENT_HR,
+  HTML_ELEMENT_HTML,
+  HTML_ELEMENT_IFRAME,
+  HTML_ELEMENT_IMG,
+  HTML_ELEMENT_INPUT,
+  HTML_ELEMENT_KEYGEN,
+  HTML_ELEMENT_LI,
+  HTML_ELEMENT_LINK,
+  HTML_ELEMENT_LISTING,
+  HTML_ELEMENT_MAIN,
+  HTML_ELEMENT_MARQUEE,
+  HTML_ELEMENT_MENU,
+  HTML_ELEMENT_META,
+  HTML_ELEMENT_NAV,
+  HTML_ELEMENT_NOEMBED,
+  HTML_ELEMENT_NOFRAMES,
+  HTML_ELEMENT_OBJECT,
+  HTML_ELEMENT_OL,
+  HTML_ELEMENT_P,
+  HTML_ELEMENT_PARAM,
+  HTML_ELEMENT_PLAINTEXT,
+  HTML_ELEMENT_PRE,
+  HTML_ELEMENT_SCRIPT,
+  HTML_ELEMENT_SEARCH,
+  HTML_ELEMENT_SECTION,
+  HTML_ELEMENT_SELECT,
+  HTML_ELEMENT_SOURCE,
+  HTML_ELEMENT_STYLE,
+  HTML_ELEMENT_SUMMARY,
+  HTML_ELEMENT_TABLE,
+  HTML_ELEMENT_TBODY,
+  HTML_ELEMENT_TD,
+  HTML_ELEMENT_TEMPLATE,
+  HTML_ELEMENT_TEXTAREA,
+  HTML_ELEMENT_TFOOT,
+  HTML_ELEMENT_TH,
+  HTML_ELEMENT_THEAD,
+  HTML_ELEMENT_TITLE,
+  HTML_ELEMENT_TR,
+  HTML_ELEMENT_TRACK,
+  HTML_ELEMENT_UL,
+  HTML_ELEMENT_WBR,
+  HTML_ELEMENT_XMP,
+};
 
 
 bool
 TreeBuilder::is_special_element(std::shared_ptr< DOM_Element> element) const
 {
-  (void) element;
-  /* ... */
+  /* XXX: other namespaces */
+
+  if (element->name_space == INFRA_NAMESPACE_HTML)
+    return k_special_html_elements_set_.contains(element->local_name);
+
+
   return false;
 }
 
