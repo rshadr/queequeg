@@ -76,7 +76,7 @@ enum html_element_index_parser_internal : uint16_t {
 
 struct tag_token {
   std::string tag_name;
-  // InfraStack *attrs;
+  // std::map<std::string, std::string> attributes;
   uint16_t local_name;
 
   bool self_closing_flag;

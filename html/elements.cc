@@ -16,6 +16,8 @@ namespace HTML {
  * This table should in principle never get accessed per se; it is used as a base
  * for any HTML documents own lookup table, which can get expanded dynamically
  * through custom elements, for example.
+ *
+ * XXX: for now, we just look things up right here.
  */
 
 const std::unordered_map< std::string, uint16_t> k_local_names_table = {
@@ -161,9 +163,28 @@ const std::unordered_map< std::string, uint16_t> k_local_names_table = {
   { "frame", HTML_ELEMENT_FRAME },
   { "frameset", HTML_ELEMENT_FRAMESET },
   { "noframes", HTML_ELEMENT_NOFRAMES },
-  /* ... */
+  { "isindex", HTML_ELEMENT_ISINDEX },
+  { "keygen", HTML_ELEMENT_KEYGEN },
+  { "listing", HTML_ELEMENT_LISTING },
+  { "menuitem", HTML_ELEMENT_MENUITEM },
+  { "nextid", HTML_ELEMENT_NEXTID },
+  { "noembed", HTML_ELEMENT_NOEMBED },
+  { "param", HTML_ELEMENT_PARAM },
+  { "plaintext", HTML_ELEMENT_PLAINTEXT },
+  { "rb", HTML_ELEMENT_RB },
+  { "rtc", HTML_ELEMENT_RTC },
+  { "strike", HTML_ELEMENT_STRIKE },
+  { "xmp", HTML_ELEMENT_XMP },
+  { "basefont", HTML_ELEMENT_BASEFONT },
+  { "big", HTML_ELEMENT_BIG },
+  { "blink", HTML_ELEMENT_BLINK },
+  { "center", HTML_ELEMENT_CENTER },
+  { "font", HTML_ELEMENT_FONT },
+  { "marquee", HTML_ELEMENT_MARQUEE },
+  { "multicol", HTML_ELEMENT_MULTICOL },
+  { "nobr", HTML_ELEMENT_NOBR },
+  { "spacer", HTML_ELEMENT_SPACER },
   { "tt", HTML_ELEMENT_TT },
-
 };
 
 
