@@ -3,6 +3,7 @@
  * This file is part of the queequeg distribution (https://github.com/rshadr/queequeg)
  * See LICENSE for details
  */
+#include <iterator>
 #include <ranges>
 #include <set>
 
@@ -56,7 +57,7 @@ TreeBuilder::process_token(union token_data *token_data,
     this->skip_newline = false;
 
     if (token_type == TOKEN_WHITESPACE
-     && token_data->ch == '\n')
+     && token_data->ch == U'\n')
       return;
   }
 
@@ -96,7 +97,7 @@ TreeBuilder::reset_insertion_mode_appropriately(void)
   for (std::shared_ptr< DOM_Element> elem : std::ranges::views::reverse(this->open_elements))
   {
     /*
-     * Separate copy for the fragment case
+     * Separate pointer copy for the fragment case
      */
     std::shared_ptr< DOM_Element> node = elem;
 
@@ -342,13 +343,58 @@ TreeBuilder::appropriate_insertion_place(std::shared_ptr< DOM_Element> override_
     || target->has_html_element_index(HTML_ELEMENT_TFOOT)
     || target->has_html_element_index(HTML_ELEMENT_THEAD)
     || target->has_html_element_index(HTML_ELEMENT_TR))) {
-    /* ... */
+    std::shared_ptr< DOM_Element> last_template = nullptr;
+    std::shared_ptr< DOM_Element> last_table    = nullptr;
+    int last_template_idx = -1;
+    int last_table_idx    = -1;
+
+    for (int i = 0; i < static_cast<long int>(this->open_elements.size()); i++) {
+      std::shared_ptr< DOM_Element> node = this->open_elements[i];
+
+      if (node->has_html_element_index(HTML_ELEMENT_TEMPLATE)) {
+        last_template     = node;
+        last_template_idx = i;
+        continue;
+      }
+
+
+      if (node->has_html_element_index(HTML_ELEMENT_TABLE)) {
+        last_table     = node;
+        last_table_idx = i;
+        continue;
+      }
+
+    }
+
+
+    if (last_template != nullptr
+     && (last_table == nullptr
+      || last_template_idx > last_table_idx)) {
+      /* XXX: template contents */
+      goto sanitize;
+    }
+
+
+    if (last_table == nullptr) {
+      /* fragment case */
+      location.parent = std::dynamic_pointer_cast<DOM_Node>(this->open_elements.front());
+      location.child  = nullptr;
+      goto sanitize;
+    }
+
+
+    std::shared_ptr< DOM_Element> prev_elem = this->open_elements[last_table_idx + 1];
+
+    location.parent = std::dynamic_pointer_cast<DOM_Node>(prev_elem);
+    location.child  = nullptr;
+
   } else {
     location.parent = target;
     location.child  = nullptr;
   }
 
 
+sanitize:
   if (location.parent->is_element()
    && std::dynamic_pointer_cast<DOM_Element>(location.parent)->has_html_element_index(HTML_ELEMENT_TEMPLATE)) {
     /* XXX: template contents */

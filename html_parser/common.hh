@@ -18,6 +18,7 @@
 #include <list>
 #include <string>
 #include <unordered_map>
+#include <map>
 
 #include <string.h>
 
@@ -34,6 +35,12 @@
 
 class Tokenizer;
 class TreeBuilder;
+
+/*
+ * Token structs are always simple aggregate types; their memory
+ * is managed by the tokenizer, except during construction and destruction
+ * of themselves
+ */
 
 
 enum token_type {
@@ -76,8 +83,8 @@ enum html_element_index_parser_internal : uint16_t {
 
 struct tag_token {
   std::string tag_name;
-  // std::map<std::string, std::string> attributes;
   uint16_t local_name;
+  std::map< std::string, std::string> attributes;
 
   bool self_closing_flag;
   bool ack_self_closing_flag_;
@@ -232,6 +239,15 @@ class Tokenizer {
     std::string comment;
     uintmax_t char_ref;
 
+    /*
+     * used until we write the value
+     */
+    std::string attr_name;
+    /*
+     * points inside the map
+     */
+    std::string *attr_value;
+
     enum tokenizer_state state;
     enum tokenizer_state ret_state;
 
@@ -279,11 +295,17 @@ class Tokenizer {
 
     void create_end_tag(void);
 
+    void start_new_attr(void);
+
+    void begin_attr_value(void);
+
     void create_comment(void);
 
     void emit_character(char32_t ch);
 
     void emit_current_doctype(void);
+
+    void attr_name_check_hook(void);
 
     void emit_current_tag(void);
 
@@ -308,7 +330,7 @@ class Tokenizer {
 
     static const state_handler_cb_t k_state_handlers_[NUM_STATES];
 
-    static const std::unordered_map< std::string, uint16_t> k_foreign_toplevel_elements_map_;
+    static const std::unordered_map< std::string, uint16_t> k_quirky_local_names_;
 };
 
 

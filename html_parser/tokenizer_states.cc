@@ -894,7 +894,7 @@ script_double_escape_end_state(Tokenizer *tokenizer, char32_t c)
 
   switch (c) {
     case '\t': case '\n': case '\f': case ' ': case '/': case '>':
-      if (!tokenizer->temp_buffer.compare(U"script"))
+      if (tokenizer->temp_buffer.compare(U"script") == 0)
         tokenizer->state = SCRIPT_ESCAPED_STATE;
       else
         tokenizer->state = SCRIPT_DOUBLE_ESCAPED_STATE;
@@ -921,12 +921,13 @@ before_attr_name_state(Tokenizer *tokenizer, char32_t c)
 
     case '=':
       tokenizer->error("unexpected-equals-sign-before-attribute-name");
-      /* ... */
+      tokenizer->start_new_attr();
+      QueequegLib::append_c32_as_utf8(&tokenizer->attr_name, c);
       tokenizer->state = ATTR_NAME_STATE;
       return TOKENIZER_STATUS_OK;
 
     default:
-      /* ... */
+      tokenizer->start_new_attr();
       tokenizer->state = ATTR_NAME_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -937,7 +938,7 @@ static enum tokenizer_status
 attr_name_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_upper_alpha(c)) {
-    /* ... */
+    QueequegLib::append_c32_as_utf8(&tokenizer->attr_name, c|0x20);
     return TOKENIZER_STATUS_OK;
   }
 
@@ -945,24 +946,25 @@ attr_name_state(Tokenizer *tokenizer, char32_t c)
     case '\t': case '\n': case '\f': case ' ': case '/': case '>':
     case static_cast<char32_t>(-1):
       tokenizer->state = AFTER_ATTR_NAME_STATE;
+      tokenizer->attr_name_check_hook();
       return TOKENIZER_STATUS_RECONSUME;
 
     case '=':
       tokenizer->state = BEFORE_ATTR_VALUE_STATE;
+      tokenizer->attr_name_check_hook();
       return TOKENIZER_STATUS_OK;
 
     case '\0':
       tokenizer->error("unexpected-null-character");
-      /* ... */
+      QueequegLib::append_c32_as_utf8(&tokenizer->attr_name, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case '\"': case '\'': case '<':
       tokenizer->error("unexpected-character-in-attribute-name");
-      /* ... */
-      return TOKENIZER_STATUS_OK;
+      [[fallthrough]];
 
     default:
-      /* ... */
+      QueequegLib::append_c32_as_utf8(&tokenizer->attr_name, c);
       return TOKENIZER_STATUS_OK;
   }
 }
@@ -993,7 +995,7 @@ after_attr_name_state(Tokenizer *tokenizer, char32_t c)
       return tokenizer->emit_eof();
 
     default:
-      /* XXX */
+      tokenizer->start_new_attr();
       tokenizer->state = ATTR_NAME_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -1043,7 +1045,7 @@ attr_value_double_quoted_state(Tokenizer *tokenizer, char32_t c)
 
     case '\0':
       tokenizer->error("unexpected-null-character");
-      // infra_string_put_unicode(
+      QueequegLib::append_c32_as_utf8(tokenizer->attr_value, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
@@ -1051,7 +1053,8 @@ attr_value_double_quoted_state(Tokenizer *tokenizer, char32_t c)
       return tokenizer->emit_eof();
 
     default:
-      /* XXX */
+      QueequegLib::append_c32_as_utf8(tokenizer->attr_value, c);
+      return TOKENIZER_STATUS_OK;
       return TOKENIZER_STATUS_OK;
   }
 }
@@ -1071,7 +1074,7 @@ attr_value_single_quoted_state(Tokenizer *tokenizer, char32_t c)
 
     case '\0':
       tokenizer->error("unexpected-null-character");
-      // XXX
+      QueequegLib::append_c32_as_utf8(tokenizer->attr_value, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
@@ -1079,7 +1082,7 @@ attr_value_single_quoted_state(Tokenizer *tokenizer, char32_t c)
       return tokenizer->emit_eof();
 
     default:
-      // XXX
+      QueequegLib::append_c32_as_utf8(tokenizer->attr_value, c);
       return TOKENIZER_STATUS_OK;
   }
 }
@@ -1105,7 +1108,7 @@ attr_value_unquoted_state(Tokenizer *tokenizer, char32_t c)
 
     case '\0':
       tokenizer->error("unexpected-null-character");
-      // XXX
+      QueequegLib::append_c32_as_utf8(tokenizer->attr_value, 0xFFFD);
       return TOKENIZER_STATUS_OK;
 
     case static_cast<char32_t>(-1):
@@ -1114,11 +1117,10 @@ attr_value_unquoted_state(Tokenizer *tokenizer, char32_t c)
 
     case '\"': case '\'': case '<': case '=': case '`':
       tokenizer->error("unexpected-character-in-unquoted-attribute-value");
-      // infra_string_put_unicode(..., c);
-      return TOKENIZER_STATUS_OK;
+      [[fallthrough]];
 
     default:
-      // infra_string_put_unicode(..., c);
+      QueequegLib::append_c32_as_utf8(tokenizer->attr_value, c);
       return TOKENIZER_STATUS_OK;
   }
 }
@@ -1201,10 +1203,8 @@ bogus_comment_state(Tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-markup_decl_open_state(Tokenizer *tokenizer, char32_t c)
+markup_decl_open_state(Tokenizer *tokenizer, [[maybe_unused]] char32_t c)
 {
-  (void) c;
-
   if (tokenizer->match("--")) {
     tokenizer->create_comment();
     tokenizer->state = COMMENT_START_STATE;
@@ -1568,10 +1568,8 @@ doctype_name_state(Tokenizer *tokenizer, char32_t c)
 
 
 static enum tokenizer_status
-after_doctype_name_state(Tokenizer *tokenizer, char32_t c)
+after_doctype_name_state(Tokenizer *tokenizer, [[maybe_unused]] char32_t c)
 {
-  (void) c;
-
   if (tokenizer->match_insensitive("PUBLIC")) {
     tokenizer->state = AFTER_DOCTYPE_PUBLIC_KEYWORD_STATE;
     return TOKENIZER_STATUS_OK;
@@ -2106,10 +2104,8 @@ char_ref_state(Tokenizer *tokenizer, char32_t c)
 #include "./named_entities.cc"
 
 static enum tokenizer_status
-named_char_ref_state(Tokenizer *tokenizer, char32_t c)
+named_char_ref_state(Tokenizer *tokenizer, [[maybe_unused]] char32_t c)
 {
-  (void) c;
-
   char const *p = tokenizer->input.p - 2;
   /* ^ skipped '&' and c; works because c is always ASCII */
   const size_t left = tokenizer->input.end - p;
@@ -2309,7 +2305,7 @@ dec_char_ref_state(Tokenizer *tokenizer, char32_t c)
 }
 
 
-static const std::unordered_map<char32_t, char32_t> k_numeric_subst_ = {
+static const std::unordered_map< char32_t, char32_t> k_numeric_subst_ = {
   { 0x80, 0x20AC }, /* EURO SIGN */
   { 0x82, 0x201A }, /* SINGLE LOW-9 QUOTATION MARK */
   { 0x83, 0x0192 }, /* LATIN SMALL LETTER F WITH HOOK */
@@ -2340,10 +2336,8 @@ static const std::unordered_map<char32_t, char32_t> k_numeric_subst_ = {
 
 
 static enum tokenizer_status
-numeric_char_ref_end_state(Tokenizer *tokenizer, char32_t ch)
+numeric_char_ref_end_state(Tokenizer *tokenizer, [[maybe_unused]] char32_t ch)
 {
-  (void) ch;
-
   char32_t code = tokenizer->char_ref;
 
   if (code == 0x00) {

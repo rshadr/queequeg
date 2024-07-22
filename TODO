@@ -7,3 +7,6 @@
 [ ] class DOM_Element : local_name -> local_index (clarity)
 [ ] Should built-in elements get inserted without checking the string/only the local_name?
 
+[ ] Text support
+[ ] Tag attribute support
+[ ] Comment support

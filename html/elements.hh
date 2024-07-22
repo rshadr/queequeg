@@ -1,6 +1,7 @@
 #ifndef _queequeg_html_elements_hh_
 #define _queequeg_html_elements_hh_
 
+#include <cstdint>
 #include <unordered_map>
 #include <string>
 

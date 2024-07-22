@@ -7,12 +7,10 @@
 
 
 class DOM_CharacterData : public DOM_Node {
-#if 0
   protected:
-    DOM_CharacterData();
+    DOM_CharacterData(std::string data = "");
   public:
     virtual ~DOM_CharacterData();
-#endif
 
   public:
     std::string data;

@@ -19,9 +19,10 @@
   fprintf(stderr, __VA_ARGS__)
 
 
-const std::unordered_map< std::string, uint16_t> Tokenizer::k_foreign_toplevel_elements_map_ = {
-  { "math", HTML_ELEMENT_MATH_ },
-  { "svg",  HTML_ELEMENT_SVG_  },
+const std::unordered_map< std::string, uint16_t> Tokenizer::k_quirky_local_names_ = {
+  { "image", HTML_ELEMENT_IMG   },
+  { "math",  HTML_ELEMENT_MATH_ },
+  { "svg",   HTML_ELEMENT_SVG_  },
 };
 
 
@@ -57,13 +58,13 @@ Tokenizer::getchar(void)
    && this->input.p[0] == '\r'
    && this->input.p[1] == '\n') {
     this->input.p += 2;
-    return '\n';
+    return U'\n';
   }
 
   if (left >= 1
    && this->input.p[0] == '\r') {
     this->input.p += 1;
-    return '\n';
+    return U'\n';
   }
 
 
@@ -180,6 +181,7 @@ Tokenizer::create_tag_(enum token_type tag_type)
 
   tag->tag_name.clear();
   tag->local_name = 0;
+  tag->attributes.clear();
   tag->self_closing_flag = false;
   tag->ack_self_closing_flag_ = false;
 
@@ -198,6 +200,20 @@ void
 Tokenizer::create_end_tag(void)
 {
   this->create_tag_(TOKEN_END_TAG);
+}
+
+
+void
+Tokenizer::start_new_attr(void)
+{
+  this->attr_name.clear();
+}
+
+
+void
+Tokenizer::begin_attr_value(void)
+{
+  this->attr_value = &this->tag.attributes[this->attr_name];
 }
 
 
@@ -254,6 +270,21 @@ Tokenizer::emit_current_doctype(void)
 
 
 void
+Tokenizer::attr_name_check_hook(void)
+{
+  if (this->tag.attributes.contains(this->attr_name)) {
+    this->error("duplicate-attribute");
+    return;
+  }
+
+  /*
+   * Here, we automatically create a new map entry
+   */
+  this->attr_value = &this->tag.attributes[this->attr_name];
+}
+
+
+void
 Tokenizer::emit_current_tag(void)
 {
   struct tag_token *tag = &this->tag;
@@ -264,16 +295,19 @@ Tokenizer::emit_current_tag(void)
    */
   if (HTML::k_local_names_table.contains(tag->tag_name)) {
     tag->local_name = HTML::k_local_names_table.at(tag->tag_name);
-  } else if (Tokenizer::k_foreign_toplevel_elements_map_.contains(tag->tag_name)) {
+  } else if (Tokenizer::k_quirky_local_names_.contains(tag->tag_name)) {
     /*
      * When a tag token falling under this condition gets inserted, its temporary
      * element index is ignored.
      */
-    tag->local_name = Tokenizer::k_foreign_toplevel_elements_map_.at(tag->tag_name);
+    tag->local_name = Tokenizer::k_quirky_local_names_.at(tag->tag_name);
   }
 
   LOGF("emitting tag with tag_name '%s', local_name %d\n",
     tag->tag_name.c_str(), tag->local_name);
+
+  for (auto const& [k, v] : tag->attributes)
+    LOGF("  %s = %s\n", k.c_str(), v.c_str());
 
   this->emit_token_(reinterpret_cast<union token_data *>(tag),
                     this->tag_type);
