@@ -13,6 +13,9 @@
  * together properly.
  */
 
+#include <concepts>
+#include <initializer_list>
+
 #include <memory>
 #include <vector>
 #include <list>
@@ -292,11 +295,8 @@ class Tokenizer {
     void create_doctype(void);
 
     void create_start_tag(void);
-
     void create_end_tag(void);
-
     void start_new_attr(void);
-
     void begin_attr_value(void);
 
     void create_comment(void);
@@ -306,7 +306,6 @@ class Tokenizer {
     void emit_current_doctype(void);
 
     void attr_name_check_hook(void);
-
     void emit_current_tag(void);
 
     void emit_current_comment(void);
@@ -323,9 +322,7 @@ class Tokenizer {
                                  size_t slen);
 
     void create_tag_(enum token_type tag_type);
-
     void destroy_doctype_(void);
-
     void emit_token_(union token_data *token_data, enum token_type token_type);
 
     static const state_handler_cb_t k_state_handlers_[NUM_STATES];
@@ -374,6 +371,12 @@ enum treebuilder_status {
   TREEBUILDER_STATUS_IGNORE,
   TREEBUILDER_STATUS_STOP,
 };
+
+
+template< typename T>
+concept ScopeTargetable = std::same_as< T, std::shared_ptr< DOM_Element>>
+                       || std::same_as< T, std::initializer_list< enum html_element_index>>
+                       || std::same_as< T, enum html_element_index>;
 
 
 class TreeBuilder {
@@ -455,9 +458,108 @@ class TreeBuilder {
     }
 
 
+    std::shared_ptr< DOM_Element> find_foreign_element_in_stack(enum InfraNamespace name_space,
+                                                                uint16_t local_name);
+
+    inline std::shared_ptr< DOM_Element>
+    find_html_element_in_stack(uint16_t local_name)
+    {
+      return this->find_foreign_element_in_stack(INFRA_NAMESPACE_HTML, local_name);
+    }
+
     bool is_special_element(std::shared_ptr< DOM_Element> element) const;
 
 
+  /*
+   * For the "in scope" algorithms, we use a barebones template function
+   * ("have_target_node_in_scope_") which just calls the overloaded ones
+   * right above it in the list below.
+   *
+   * The element scope definitions themselves are also implemented as templates
+   * so we don't need to write the same thing 50 times.
+   * XXX: Caveat; will have to explicitly instantiate everything in treebuilder.cc
+   */
+  /*
+   * XXX: remove useless overloads (html_element_index antecedents)
+   */
+  private:
+    bool scope_node_equals_(std::shared_ptr< DOM_Element> node,
+                            std::shared_ptr< DOM_Element> target);
+    bool scope_node_equals_(std::shared_ptr< DOM_Element> node,
+                            std::initializer_list< enum html_element_index> html_local_names);
+    bool scope_node_equals_(std::shared_ptr< DOM_Element> node,
+                            enum html_element_index html_local_name)
+    {
+      return this->scope_node_equals_(node, {html_local_name} );
+    }
+
+    bool scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
+                               std::shared_ptr< DOM_Element> elem);
+    bool scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
+                               std::initializer_list< enum html_element_index> html_local_names);
+
+    bool scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
+                               enum html_element_index html_local_name)
+    {
+      return this->scope_batch_contains_(list, {html_local_name});
+    }
+
+    template< typename T>
+    bool have_target_node_in_scope_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
+                                    T targets);
+
+    static const std::vector< std::pair< uint16_t, uint16_t>> k_particular_scope_def_;
+    static const std::vector< std::pair< uint16_t, uint16_t>> k_list_scope_def_;
+    static const std::vector< std::pair< uint16_t, uint16_t>> k_button_scope_def_;
+    static const std::vector< std::pair< uint16_t, uint16_t>> k_table_scope_def_;
+    static const std::vector< std::pair< uint16_t, uint16_t>> k_select_scope_def_;
+
+
+
+  public:
+    template< ScopeTargetable T>
+    bool
+    have_element_in_scope(T targets)
+    {
+      return this->have_target_node_in_scope_(&TreeBuilder::k_particular_scope_def_,
+                                              targets);
+    }
+
+    template< typename T>
+    bool
+    have_element_in_list_item_scope(T targets)
+    {
+      return this->have_target_node_in_scope_(&TreeBuilder::k_list_scope_def_,
+                                              targets);
+    }
+
+    template< typename T>
+    bool
+    have_element_in_button_scope(T targets)
+    {
+      return this->have_target_node_in_scope_(&TreeBuilder::k_button_scope_def_,
+                                              targets);
+    }
+
+    template< typename T>
+    bool
+    have_element_in_table_scope(T targets)
+    {
+      return this->have_target_node_in_scope_(&TreeBuilder::k_table_scope_def_,
+                                              targets);
+    }
+
+    template< typename T>
+    bool
+    have_element_in_select_scope(T targets)
+    {
+      return this->have_target_node_in_scope_(&TreeBuilder::k_table_scope_def_,
+                                              targets);
+    }
+
+
+  public:
+    
     void push_to_active_formatting_elements(std::shared_ptr< DOM_Element> element);
 
     void reconstruct_active_formatting_elements(void);

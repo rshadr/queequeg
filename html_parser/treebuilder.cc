@@ -305,6 +305,172 @@ TreeBuilder::is_special_element(std::shared_ptr< DOM_Element> element) const
 }
 
 
+
+/*
+ * "in scope" algorithms; see 'html_parser/common.h' for details
+ */
+bool
+TreeBuilder::scope_node_equals_(std::shared_ptr< DOM_Element> node,
+                                std::shared_ptr< DOM_Element> target)
+{
+  return (node == target);
+}
+
+
+bool
+TreeBuilder::scope_node_equals_(std::shared_ptr< DOM_Element> node,
+                                std::initializer_list< enum html_element_index> html_local_names)
+{
+  if (node->name_space != INFRA_NAMESPACE_HTML)
+    return false;
+
+  for (uint16_t local_name : html_local_names)
+    if (node->local_name == local_name)
+      return true;
+
+  return false;
+}
+
+
+#if 0
+bool
+TreeBuilder::scope_node_equals_(std::shared_ptr< DOM_Element> node,
+                                uint16_t html_local_name)
+{
+  return this->scope_node_
+}
+#endif
+
+
+/*
+ * XXX: check if only HTML namespace
+ */
+bool
+TreeBuilder::scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
+                                   std::shared_ptr< DOM_Element> elem)
+{
+  for (const auto& [name_space, local_name] : *list)
+    if ((name_space == INFRA_NAMESPACE_HTML)
+     && elem->has_html_element_index(local_name))
+      return true;
+
+  return false;
+}
+
+
+bool
+TreeBuilder::scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
+                                   std::initializer_list< enum html_element_index> html_local_names)
+{
+  for (const auto& [name_space, local_name] : *list)
+  for (const uint16_t cur_html_element : html_local_names)
+    if (name_space == INFRA_NAMESPACE_HTML
+     && local_name == cur_html_element)
+      return false;
+
+  return false;
+}
+
+#if 0
+bool
+TreeBuilder::scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
+                                   uint16_t html_local_name)
+{
+  const std::vector< uint16_t> html_local_names = { html_local_name };
+  return this->scope_batch_contains_(list, &html_local_names);
+}
+#endif
+
+
+template< typename T>
+bool
+TreeBuilder::have_target_node_in_scope_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
+                                        T targets)
+{
+
+  for (std::shared_ptr< DOM_Element> &node : std::ranges::views::reverse(this->open_elements))
+  {
+    if (this->scope_node_equals_(node, targets))
+      return true;
+
+    if (this->scope_batch_contains_(list, targets))
+      return false;
+  }
+
+  // std::unreachable();
+  return false;
+}
+
+
+/*
+ * Only these can be instantiated
+ * XXX: remove useless instances (html_element_index antecedents)
+ */
+template
+bool TreeBuilder::have_target_node_in_scope_< std::shared_ptr< DOM_Element>>(
+      std::vector< std::pair< uint16_t, uint16_t>> const *list,
+      std::shared_ptr< DOM_Element> elem);
+template
+bool TreeBuilder::have_target_node_in_scope_< std::initializer_list< enum html_element_index>>(
+      std::vector< std::pair< uint16_t, uint16_t>> const *list,
+      std::initializer_list< enum html_element_index> html_local_names);
+template
+bool TreeBuilder::have_target_node_in_scope_< enum html_element_index>(
+      std::vector< std::pair< uint16_t, uint16_t>> const *list,
+      enum html_element_index html_local_name);
+
+
+#define PARTICULAR_ELEMENT_SCOPE_DEF \
+  { INFRA_NAMESPACE_HTML,   HTML_ELEMENT_APPLET           }, \
+  { INFRA_NAMESPACE_HTML,   HTML_ELEMENT_CAPTION          }, \
+  { INFRA_NAMESPACE_HTML,   HTML_ELEMENT_HTML             }, \
+  { INFRA_NAMESPACE_HTML,   HTML_ELEMENT_TABLE            }, \
+  { INFRA_NAMESPACE_HTML,   HTML_ELEMENT_TD               }, \
+  { INFRA_NAMESPACE_HTML,   HTML_ELEMENT_TH               }, \
+  { INFRA_NAMESPACE_HTML,   HTML_ELEMENT_MARQUEE          }, \
+  { INFRA_NAMESPACE_HTML,   HTML_ELEMENT_OBJECT           }, \
+  { INFRA_NAMESPACE_HTML,   HTML_ELEMENT_TEMPLATE         }
+
+  // { INFRA_NAMESPACE_MATHML, MATHML_ELEMENT_MI             },
+  // { INFRA_NAMESPACE_MATHML, MATHML_ELEMENT_MO             },
+  // { INFRA_NAMESPACE_MATHML, MATHML_ELEMENT_MN             },
+  // { INFRA_NAMESPACE_MATHML, MATHML_ELEMENT_MS             },
+  // { INFRA_NAMESPACE_MATHML, MATHML_ELEMENT_MTEXT          },
+  // { INFRA_NAMESPACE_MATHML, MATHML_ELEMENT_ANNOTATION_XML },
+  // { INFRA_NAMESPACE_SVG,    SVG_ELEMENT_FOREIGN_OBJECT    },
+  // { INFRA_NAMESPACE_SVG,    SVG_ELEMENT_DESC              },
+  // { INFRA_NAMESPACE_SVG,    SVG_ELEMENT_TITLE             } 
+
+const std::vector< std::pair< uint16_t, uint16_t>> TreeBuilder::k_particular_scope_def_ = {
+  PARTICULAR_ELEMENT_SCOPE_DEF,
+};
+
+const std::vector< std::pair< uint16_t, uint16_t>> TreeBuilder::k_list_scope_def_ = {
+  PARTICULAR_ELEMENT_SCOPE_DEF,
+  { INFRA_NAMESPACE_HTML, HTML_ELEMENT_OL },
+  { INFRA_NAMESPACE_HTML, HTML_ELEMENT_UL },
+};
+
+const std::vector< std::pair< uint16_t, uint16_t>> TreeBuilder::k_button_scope_def_ = {
+  PARTICULAR_ELEMENT_SCOPE_DEF,
+  { INFRA_NAMESPACE_HTML, HTML_ELEMENT_BUTTON },
+};
+
+const std::vector< std::pair< uint16_t, uint16_t>> TreeBuilder::k_table_scope_def_ = {
+  { INFRA_NAMESPACE_HTML, HTML_ELEMENT_HTML     },
+  { INFRA_NAMESPACE_HTML, HTML_ELEMENT_TABLE    },
+  { INFRA_NAMESPACE_HTML, HTML_ELEMENT_TEMPLATE },
+};
+
+const std::vector< std::pair< uint16_t, uint16_t>> TreeBuilder::k_select_scope_def_ = {
+ { INFRA_NAMESPACE_HTML, HTML_ELEMENT_OPTGROUP },
+ { INFRA_NAMESPACE_HTML, HTML_ELEMENT_OPTION   },
+};
+
+#undef PARTICULAR_ELEMENT_SCOPE_DEF
+
+
+
 void
 TreeBuilder::push_to_active_formatting_elements(std::shared_ptr< DOM_Element> element)
 {

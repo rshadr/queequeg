@@ -14,6 +14,7 @@
 #include "dom/core/document.hh"
 #include "dom/core/element.hh"
 
+#include "html/elements.hh"
 #include "html_parser/parser.hh"
 
 
@@ -79,6 +80,8 @@ main(int argc, char *argv[])
 
   printf("Document instance size: %zu\n", sizeof (DOM_Document));
   printf("Element instance size: %zu\n", sizeof (DOM_Element));
+
+  printf("Enum size: %zu\n", sizeof (enum html_element_index));
 
   return 0;
 }
