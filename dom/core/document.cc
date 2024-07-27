@@ -3,9 +3,13 @@
  * This file is part of the queequeg distribution (https://github.com/rshadr/queequeg)
  * See LICENSE for details
  */
-#include "dom/core/element.hh"
+#include <cassert>
 
+#include "dom/core/element.hh"
 #include "dom/core/document.hh"
+#include "dom/html/html_element.hh"
+
+#include "html/elements.hh"
 
 
 DOM_Document::DOM_Document(enum dom_document_format format)
@@ -40,16 +44,19 @@ DOM_Document::create_element(uint16_t local_name,
   (void) is;
   (void) sync_custom_elements;
 
+  assert( name_space == INFRA_NAMESPACE_HTML && "only HTML is supported" );
+
   std::shared_ptr< DOM_Element> result = nullptr;
 
   /* XXX: custom definition ... */
 
   {
-    /* XXX: element interface */
-    result = std::make_shared< DOM_Element>(std::static_pointer_cast< DOM_Document>(this->shared_from_this()));
+    std::shared_ptr< DOM_Document> document =
+     std::dynamic_pointer_cast<DOM_Document>(this->shared_from_this());
 
-    result->local_name = local_name;
-    result->name_space = name_space;
+    /* XXX: element interface */
+    result = std::dynamic_pointer_cast<DOM_Element>(std::shared_ptr<DOM_HTMLElement>(
+              HTML::new_element_with_index(document, local_name)));
 
     result->custom_state = DOM_CESTATE_UNCUSTOMIZED;
     result->custom_definition = nullptr;

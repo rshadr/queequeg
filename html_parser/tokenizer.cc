@@ -12,6 +12,8 @@
 #include <infra/ascii.h>
 #include <infra/string.h>
 
+#include "qglib/unicode.hh"
+
 #include "html_parser/common.hh"
 
 
@@ -46,7 +48,7 @@ Tokenizer::getchar(void)
 {
   size_t left = this->input.end - this->input.p;
   size_t read;
-  char32_t ch = 0xFFFD;
+  char32_t ch = {0xFFFD};
 
 
   if (left > 0 && *this->input.p == '\0')
@@ -130,8 +132,7 @@ Tokenizer::error(char const *errstr)
 bool
 Tokenizer::have_appropriate_end_tag(void) const
 {
-  // ...
-  return true;
+  return (this->last_start_tag_name_.compare(this->tag.tag_name) == 0);
 }
 
 
@@ -141,7 +142,7 @@ Tokenizer::flush_char_ref_codepoints(void)
 
   for (char32_t ch : this->temp_buffer) {
     if (this->is_char_ref_in_attr())
-      (void)0;
+      QueequegLib::append_c32_as_utf8(this->attr_value, ch);
     else
       this->emit_character(ch);
   }
@@ -150,22 +151,13 @@ Tokenizer::flush_char_ref_codepoints(void)
 
 
 void
-Tokenizer::destroy_doctype_(void)
+Tokenizer::create_doctype(void)
 {
   struct doctype_token *doctype = &this->doctype;
 
   doctype->name.clear();
   doctype->public_id.clear();
   doctype->system_id.clear();
-
-}
-
-
-void
-Tokenizer::create_doctype(void)
-{
-  this->destroy_doctype_();
-  struct doctype_token *doctype = &this->doctype;
 
   doctype->public_id_missing = false;
   doctype->system_id_missing = false;
@@ -211,16 +203,9 @@ Tokenizer::start_new_attr(void)
 
 
 void
-Tokenizer::begin_attr_value(void)
+Tokenizer::create_comment(std::string data)
 {
-  this->attr_value = &this->tag.attributes[this->attr_name];
-}
-
-
-void
-Tokenizer::create_comment(void)
-{
-  this->comment.clear();
+  this->comment = data;
 }
 
 
@@ -278,7 +263,7 @@ Tokenizer::attr_name_check_hook(void)
   }
 
   /*
-   * Here, we automatically create a new map entry
+   * SIDE EFFECT: creates a new map entry
    */
   this->attr_value = &this->tag.attributes[this->attr_name];
 }
@@ -303,11 +288,15 @@ Tokenizer::emit_current_tag(void)
     tag->local_name = Tokenizer::k_quirky_local_names_.at(tag->tag_name);
   }
 
-  LOGF("emitting tag with tag_name '%s', local_name %d\n",
+  LOGF("emitting %s tag with tag_name '%s', local_name %d\n",
+    (this->tag_type == TOKEN_START_TAG) ? "start" : "end",
     tag->tag_name.c_str(), tag->local_name);
 
   for (auto const& [k, v] : tag->attributes)
     LOGF("  %s = %s\n", k.c_str(), v.c_str());
+
+  if (this->tag_type == TOKEN_START_TAG)
+    this->last_start_tag_name_ = tag->tag_name;
 
   this->emit_token_(reinterpret_cast<union token_data *>(tag),
                     this->tag_type);
@@ -349,7 +338,7 @@ Tokenizer::run(void)
       case AFTER_DOCTYPE_NAME_STATE:
       case AFTER_DOCTYPE_PUBLIC_KEYWORD_STATE:
       case NUMERIC_CHAR_REF_END_STATE:
-        ch = 0xFFFD;
+        ch = {0xFFFD};
         break;
 
       default:

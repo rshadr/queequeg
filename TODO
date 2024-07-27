@@ -1,8 +1,13 @@
 [ ] Fix grapheme.h ABI caveat
 [ ] Keep internal index variable for child node within parent node
+
+    ===< DOM >===
 [ ] Better protect DOM access
+[ ] Add "name_space" and "local_name" parameters to DOM_Element ctor
 
     ===< HTML PARSER >===
+[ ] DOM interfaces for HTML elements !!!
+
 [ ] struct tag_token : local_name -> html_index (clarity)
 [ ] class DOM_Element : local_name -> local_index (clarity)
 [ ] Should built-in elements get inserted without checking the string/only the local_name?

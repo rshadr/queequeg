@@ -299,7 +299,7 @@ class Tokenizer {
     void start_new_attr(void);
     void begin_attr_value(void);
 
-    void create_comment(void);
+    void create_comment(std::string data = "");
 
     void emit_character(char32_t ch);
 
@@ -317,16 +317,16 @@ class Tokenizer {
 
 
   private:
+    std::string last_start_tag_name_;
+
     [[nodiscard]] bool match_fn_(int (*cmp) (char const *, char const *, size_t),
                                  char const *s,
                                  size_t slen);
 
     void create_tag_(enum token_type tag_type);
-    void destroy_doctype_(void);
     void emit_token_(union token_data *token_data, enum token_type token_type);
 
     static const state_handler_cb_t k_state_handlers_[NUM_STATES];
-
     static const std::unordered_map< std::string, uint16_t> k_quirky_local_names_;
 };
 
@@ -408,7 +408,7 @@ class TreeBuilder {
 
     uint16_t script_nesting_level;
 
-    enum insertion_mode mode;
+    enum insertion_mode mode = INITIAL_MODE;
     enum insertion_mode original_mode;
 
     struct {
@@ -431,7 +431,7 @@ class TreeBuilder {
 
 
     inline enum insertion_mode
-    current_template_mode(void)
+    current_template_mode(void) const
     {
       /* XXX: maybe throws an exception? */
       return this->template_modes.back();
@@ -484,29 +484,29 @@ class TreeBuilder {
    */
   private:
     bool scope_node_equals_(std::shared_ptr< DOM_Element> node,
-                            std::shared_ptr< DOM_Element> target);
+                            std::shared_ptr< DOM_Element> target) const;
     bool scope_node_equals_(std::shared_ptr< DOM_Element> node,
-                            std::initializer_list< enum html_element_index> html_local_names);
+                            std::initializer_list< enum html_element_index> html_local_names) const;
     bool scope_node_equals_(std::shared_ptr< DOM_Element> node,
-                            enum html_element_index html_local_name)
+                            enum html_element_index html_local_name) const
     {
       return this->scope_node_equals_(node, {html_local_name} );
     }
 
     bool scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
-                               std::shared_ptr< DOM_Element> elem);
+                               std::shared_ptr< DOM_Element> elem) const;
     bool scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
-                               std::initializer_list< enum html_element_index> html_local_names);
+                               std::initializer_list< enum html_element_index> html_local_names) const;
 
     bool scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
-                               enum html_element_index html_local_name)
+                               enum html_element_index html_local_name) const
     {
       return this->scope_batch_contains_(list, {html_local_name});
     }
 
-    template< typename T>
+    template< ScopeTargetable T>
     bool have_target_node_in_scope_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
-                                    T targets);
+                                    T targets) const;
 
     static const std::vector< std::pair< uint16_t, uint16_t>> k_particular_scope_def_;
     static const std::vector< std::pair< uint16_t, uint16_t>> k_list_scope_def_;
@@ -519,39 +519,39 @@ class TreeBuilder {
   public:
     template< ScopeTargetable T>
     bool
-    have_element_in_scope(T targets)
+    have_element_in_scope(T targets) const
     {
       return this->have_target_node_in_scope_(&TreeBuilder::k_particular_scope_def_,
                                               targets);
     }
 
-    template< typename T>
+    template< ScopeTargetable T>
     bool
-    have_element_in_list_item_scope(T targets)
+    have_element_in_list_item_scope(T targets) const
     {
       return this->have_target_node_in_scope_(&TreeBuilder::k_list_scope_def_,
                                               targets);
     }
 
-    template< typename T>
+    template< ScopeTargetable T>
     bool
-    have_element_in_button_scope(T targets)
+    have_element_in_button_scope(T targets) const
     {
       return this->have_target_node_in_scope_(&TreeBuilder::k_button_scope_def_,
                                               targets);
     }
 
-    template< typename T>
+    template< ScopeTargetable T>
     bool
-    have_element_in_table_scope(T targets)
+    have_element_in_table_scope(T targets) const
     {
       return this->have_target_node_in_scope_(&TreeBuilder::k_table_scope_def_,
                                               targets);
     }
 
-    template< typename T>
+    template< ScopeTargetable T>
     bool
-    have_element_in_select_scope(T targets)
+    have_element_in_select_scope(T targets) const
     {
       return this->have_target_node_in_scope_(&TreeBuilder::k_table_scope_def_,
                                               targets);
@@ -573,6 +573,9 @@ class TreeBuilder {
     create_element_for_token(struct tag_token const *tag,
                              enum InfraNamespace name_space,
                              std::shared_ptr< DOM_Node> intended_parent);
+
+    void insert_element_at_location(InsertionLocation location,
+                                    std::shared_ptr< DOM_Element> element) const;
 
     void insert_element_at_adjusted_insertion_location(std::shared_ptr< DOM_Element>);
 

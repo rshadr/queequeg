@@ -311,7 +311,7 @@ TreeBuilder::is_special_element(std::shared_ptr< DOM_Element> element) const
  */
 bool
 TreeBuilder::scope_node_equals_(std::shared_ptr< DOM_Element> node,
-                                std::shared_ptr< DOM_Element> target)
+                                std::shared_ptr< DOM_Element> target) const
 {
   return (node == target);
 }
@@ -319,7 +319,7 @@ TreeBuilder::scope_node_equals_(std::shared_ptr< DOM_Element> node,
 
 bool
 TreeBuilder::scope_node_equals_(std::shared_ptr< DOM_Element> node,
-                                std::initializer_list< enum html_element_index> html_local_names)
+                                std::initializer_list< enum html_element_index> html_local_names) const
 {
   if (node->name_space != INFRA_NAMESPACE_HTML)
     return false;
@@ -332,22 +332,12 @@ TreeBuilder::scope_node_equals_(std::shared_ptr< DOM_Element> node,
 }
 
 
-#if 0
-bool
-TreeBuilder::scope_node_equals_(std::shared_ptr< DOM_Element> node,
-                                uint16_t html_local_name)
-{
-  return this->scope_node_
-}
-#endif
-
-
 /*
  * XXX: check if only HTML namespace
  */
 bool
 TreeBuilder::scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
-                                   std::shared_ptr< DOM_Element> elem)
+                                   std::shared_ptr< DOM_Element> elem) const
 {
   for (const auto& [name_space, local_name] : *list)
     if ((name_space == INFRA_NAMESPACE_HTML)
@@ -360,7 +350,7 @@ TreeBuilder::scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> 
 
 bool
 TreeBuilder::scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
-                                   std::initializer_list< enum html_element_index> html_local_names)
+                                   std::initializer_list< enum html_element_index> html_local_names) const
 {
   for (const auto& [name_space, local_name] : *list)
   for (const uint16_t cur_html_element : html_local_names)
@@ -371,24 +361,14 @@ TreeBuilder::scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> 
   return false;
 }
 
-#if 0
-bool
-TreeBuilder::scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
-                                   uint16_t html_local_name)
-{
-  const std::vector< uint16_t> html_local_names = { html_local_name };
-  return this->scope_batch_contains_(list, &html_local_names);
-}
-#endif
 
-
-template< typename T>
+template< ScopeTargetable T>
 bool
 TreeBuilder::have_target_node_in_scope_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
-                                        T targets)
+                                        T targets) const
 {
 
-  for (std::shared_ptr< DOM_Element> &node : std::ranges::views::reverse(this->open_elements))
+  for (const auto& node : std::ranges::views::reverse(this->open_elements))
   {
     if (this->scope_node_equals_(node, targets))
       return true;
@@ -409,15 +389,15 @@ TreeBuilder::have_target_node_in_scope_(std::vector< std::pair< uint16_t, uint16
 template
 bool TreeBuilder::have_target_node_in_scope_< std::shared_ptr< DOM_Element>>(
       std::vector< std::pair< uint16_t, uint16_t>> const *list,
-      std::shared_ptr< DOM_Element> elem);
+      std::shared_ptr< DOM_Element> elem) const;
 template
 bool TreeBuilder::have_target_node_in_scope_< std::initializer_list< enum html_element_index>>(
       std::vector< std::pair< uint16_t, uint16_t>> const *list,
-      std::initializer_list< enum html_element_index> html_local_names);
+      std::initializer_list< enum html_element_index> html_local_names) const;
 template
 bool TreeBuilder::have_target_node_in_scope_< enum html_element_index>(
       std::vector< std::pair< uint16_t, uint16_t>> const *list,
-      enum html_element_index html_local_name);
+      enum html_element_index html_local_name) const;
 
 
 #define PARTICULAR_ELEMENT_SCOPE_DEF \
@@ -515,7 +495,7 @@ TreeBuilder::appropriate_insertion_place(std::shared_ptr< DOM_Element> override_
     int last_table_idx    = -1;
 
     for (int i = 0; i < static_cast<long int>(this->open_elements.size()); i++) {
-      std::shared_ptr< DOM_Element> node = this->open_elements[i];
+      auto node = this->open_elements[i];
 
       if (node->has_html_element_index(HTML_ELEMENT_TEMPLATE)) {
         last_template     = node;
@@ -600,6 +580,15 @@ TreeBuilder::create_element_for_token(struct tag_token const *tag,
 
 
 void
+TreeBuilder::insert_element_at_location(InsertionLocation location,
+                                        std::shared_ptr< DOM_Element> element) const
+{
+  location.parent->insert_node(std::dynamic_pointer_cast<DOM_Node>(element),
+   location.child);
+}
+
+
+void
 TreeBuilder::insert_element_at_adjusted_insertion_location(std::shared_ptr< DOM_Element> element)
 {
   InsertionLocation location = this->appropriate_insertion_place();
@@ -607,8 +596,7 @@ TreeBuilder::insert_element_at_adjusted_insertion_location(std::shared_ptr< DOM_
 
   /* XXX: custom element reactions */
 
-  location.parent->insert_node(std::static_pointer_cast<DOM_Node>(element),
-                               location.child);
+  this->insert_element_at_location(location, element);
 
   /* XXX: invoke custom element reactions */
 }

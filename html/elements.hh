@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <unordered_map>
 #include <string>
+#include <memory>
 
 /*
  * This enumeration is used to address built-in and custom HTML elements by
@@ -185,6 +186,9 @@ enum html_element_index : uint16_t {
 };
 
 
+class DOM_Document;
+class DOM_HTMLElement;
+
 namespace HTML {
 
   /*
@@ -192,6 +196,9 @@ namespace HTML {
    * parsing.
    * XXX: 2-way map for later
    */
+  DOM_HTMLElement *new_element_with_index(std::shared_ptr< DOM_Document> document,
+                                          uint16_t local_name);
+
   extern const std::unordered_map< std::string, uint16_t> k_local_names_table;
 
 } /* namespace HTML */

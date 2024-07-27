@@ -21,9 +21,7 @@
  *
  *
  *  TODO:
- * - Attribute support
  * - Handle named character references properly
- * - Remove all uses of 'InfraString' and replace with 'std::string'
  * - Scripting support
  */
 #include <unordered_map>
@@ -342,7 +340,10 @@ rcdata_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
 anything_else:
       tokenizer->emit_character('<');
       tokenizer->emit_character('/');
-      /* ... */
+
+      for (char32_t tmp_c : tokenizer->temp_buffer)
+        tokenizer->emit_character(tmp_c);
+
       tokenizer->state = RCDATA_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -422,7 +423,10 @@ anything_else:
     default:
       tokenizer->emit_character('<');
       tokenizer->emit_character('/');
-      /* ... */
+
+      for (char32_t temp_ch : tokenizer->temp_buffer)
+        tokenizer->emit_character(temp_ch);
+
       tokenizer->state = RAWTEXT_STATE;
       return TOKENIZER_STATUS_OK;
   }
@@ -509,7 +513,10 @@ script_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
     default:
       tokenizer->emit_character('<');
       tokenizer->emit_character('/');
-      /* ... */
+
+      for (char32_t temp_ch : tokenizer->temp_buffer)
+        tokenizer->emit_character(temp_ch);
+
       tokenizer->state = SCRIPT_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -724,7 +731,10 @@ script_escaped_end_tag_name_state(Tokenizer *tokenizer, char32_t c)
 anything_else:
       tokenizer->emit_character('<');
       tokenizer->emit_character('/');
-      /* ... */
+
+      for (char32_t temp_ch : tokenizer->temp_buffer)
+        tokenizer->emit_character(temp_ch);
+
       tokenizer->state = SCRIPT_ESCAPED_STATE;
       return TOKENIZER_STATUS_RECONSUME;
   }
@@ -1225,8 +1235,9 @@ markup_decl_open_state(Tokenizer *tokenizer, [[maybe_unused]] char32_t c)
     }
 
     tokenizer->error("cdata-in-html-content");
-    /* ... */
+    tokenizer->create_comment("[CDATA[");
     tokenizer->state = BOGUS_COMMENT_STATE;
+
     return TOKENIZER_STATUS_OK;
   }
 
@@ -2178,7 +2189,7 @@ ambiguous_ampersand_state(Tokenizer *tokenizer, char32_t c)
 {
   if (ascii_is_alnum(c)) {
     if (tokenizer->is_char_ref_in_attr())
-      (void)0; // infra_string_put_char(tokenizer->attr, c);
+      QueequegLib::append_c32_as_utf8(tokenizer->attr_value, c);
     else
       tokenizer->emit_character(c);
     return TOKENIZER_STATUS_OK;

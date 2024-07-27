@@ -18,13 +18,19 @@
 
 #include "dom/core/document_type.hh"
 #include "dom/html/html_html_element.hh"
+#include "dom/html/html_head_element.hh"
+#include "dom/html/html_script_element.hh"
 #include "html/elements.hh"
 
 #include "html_parser/common.hh"
 
-
-#define LOGF(...) \
+#if !defined NDEBUG
+# define LOGF(...) \
   fprintf(stderr, __VA_ARGS__)
+#else
+# define LOGF(...) \
+  (void)0
+#endif
 
 
 static enum treebuilder_status initial_mode(TreeBuilder *, union token_data *, enum token_type);
@@ -146,10 +152,8 @@ before_html_mode(TreeBuilder *treebuilder,
     {
       case HTML_ELEMENT_HTML: {
         std::shared_ptr< DOM_HTMLHtmlElement> html =
-         std::make_shared< DOM_HTMLHtmlElement>(treebuilder->document);
-
-        html->name_space = INFRA_NAMESPACE_HTML;
-        html->local_name = HTML_ELEMENT_HTML;
+         std::make_shared< DOM_HTMLHtmlElement>(treebuilder->document,
+          INFRA_NAMESPACE_HTML, HTML_ELEMENT_HTML);
 
         treebuilder->document->append_node(html);
 
@@ -188,10 +192,8 @@ before_html_mode(TreeBuilder *treebuilder,
 
   anything_else: {
     std::shared_ptr< DOM_HTMLHtmlElement> html =
-     std::make_shared< DOM_HTMLHtmlElement>(treebuilder->document);
-
-    html->name_space = INFRA_NAMESPACE_HTML;
-    html->local_name = HTML_ELEMENT_HTML;
+     std::make_shared< DOM_HTMLHtmlElement>(treebuilder->document,
+      INFRA_NAMESPACE_HTML, HTML_ELEMENT_HTML);
 
     treebuilder->document->append_node(html);
 
@@ -365,7 +367,28 @@ in_head_mode(TreeBuilder *treebuilder,
 
 
       case HTML_ELEMENT_SCRIPT: {
-        /* XXX: ... */
+        InsertionLocation ins_location = treebuilder->appropriate_insertion_place();
+
+        std::shared_ptr< DOM_HTMLScriptElement> script_el = std::dynamic_pointer_cast<DOM_HTMLScriptElement>(
+         treebuilder->create_element_for_token(tag,
+         INFRA_NAMESPACE_HTML, ins_location.parent));
+
+        script_el->parser_document = treebuilder->document;
+        script_el->script_flags.force_async = false;
+
+        if (treebuilder->flags.fragment_parse) {
+          /* fragment case */
+          script_el->script_flags.already_started = true;
+        }
+
+        /* XXX: write/writeln */
+
+        LOGF("script_el = %p\n", reinterpret_cast<void *>(script_el.get()));
+
+        treebuilder->insert_element_at_location(ins_location,
+         std::dynamic_pointer_cast<DOM_Element>(script_el));
+
+        treebuilder->open_elements.push_back(std::dynamic_pointer_cast<DOM_Element>(script_el));
 
         treebuilder->tokenizer->state = SCRIPT_STATE;
         treebuilder->original_mode = treebuilder->mode;
@@ -1101,7 +1124,9 @@ in_body_mode(TreeBuilder *treebuilder,
 
 
       case HTML_ELEMENT_HR: {
-        /* XXX: close a p element */
+        if (treebuilder->have_element_in_button_scope(HTML_ELEMENT_P))
+          close_p_element(treebuilder);
+
         treebuilder->insert_html_element(tag);
         treebuilder->open_elements.pop_back();
 
@@ -1127,7 +1152,8 @@ in_body_mode(TreeBuilder *treebuilder,
 
 
       case HTML_ELEMENT_XMP: {
-        /* XXX: close p element */
+        if (treebuilder->have_element_in_button_scope(HTML_ELEMENT_P))
+          close_p_element(treebuilder);
 
         treebuilder->reconstruct_active_formatting_elements();
         treebuilder->flags.frameset_ok = false;
@@ -1178,7 +1204,8 @@ in_body_mode(TreeBuilder *treebuilder,
 
 
       case HTML_ELEMENT_OPTGROUP: case HTML_ELEMENT_OPTION: {
-        /* XXX: pop current_node */
+        if (treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_OPTION))
+          treebuilder->open_elements.pop_back();
 
         treebuilder->reconstruct_active_formatting_elements();
         treebuilder->insert_html_element(tag);
@@ -1188,7 +1215,11 @@ in_body_mode(TreeBuilder *treebuilder,
 
 
       case HTML_ELEMENT_RB: case HTML_ELEMENT_RTC: {
-        /* XXX: ... generate implied end tags */
+        if (treebuilder->have_element_in_scope(HTML_ELEMENT_RUBY))
+          treebuilder->generate_implied_end_tags();
+
+        if (! treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_RUBY))
+          treebuilder->error();
 
         treebuilder->insert_html_element(tag);
 
@@ -1197,7 +1228,12 @@ in_body_mode(TreeBuilder *treebuilder,
 
 
       case HTML_ELEMENT_RP: case HTML_ELEMENT_RT: {
-        /* XXX: ... */
+        if (treebuilder->have_element_in_scope(HTML_ELEMENT_RUBY))
+          treebuilder->generate_implied_end_tags(HTML_ELEMENT_RTC);
+
+        if (! (treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_RTC)
+            || treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_RUBY)))
+          treebuilder->error();
 
         treebuilder->insert_html_element(tag);
 
@@ -1428,6 +1464,7 @@ in_body_mode(TreeBuilder *treebuilder,
                  || popped->has_html_element_index(HTML_ELEMENT_H4)
                  || popped->has_html_element_index(HTML_ELEMENT_H5)
                  || popped->has_html_element_index(HTML_ELEMENT_H6)));
+
         return TREEBUILDER_STATUS_OK;
       }
 
@@ -1475,7 +1512,7 @@ in_body_mode(TreeBuilder *treebuilder,
 
       default: {
 
-        for (std::shared_ptr< DOM_Element> node : std::ranges::views::reverse(treebuilder->open_elements))
+        for (const auto& node : std::ranges::views::reverse(treebuilder->open_elements))
         {
           if (node->name_space == INFRA_NAMESPACE_HTML
            && node->local_name == tag->local_name) {
@@ -1578,13 +1615,18 @@ text_mode(TreeBuilder *treebuilder,
 
       case HTML_ELEMENT_SCRIPT: {
         /* XXX: hell... */
+        LOGF("number of open tags in critical section one: %d\n",
+         static_cast<int>(treebuilder->open_elements.size()));
         treebuilder->open_elements.pop_back();
         treebuilder->mode = treebuilder->original_mode;
         /* XXX: hell... */
+        LOGF("i'm alive?\n");
         return TREEBUILDER_STATUS_OK;
       }
 
       default: {
+        LOGF("number of open tags in critical section: %d\n",
+         static_cast<int>(treebuilder->open_elements.size()));
         treebuilder->open_elements.pop_back();
         treebuilder->mode = treebuilder->original_mode;
         return TREEBUILDER_STATUS_OK;
@@ -1846,7 +1888,11 @@ in_caption_mode(TreeBuilder *treebuilder,
     {
 
       case HTML_ELEMENT_CAPTION: {
-        /* XXX: ... in table scope */
+        if (! treebuilder->have_element_in_table_scope(HTML_ELEMENT_CAPTION)) {
+          /* fragment case */
+          treebuilder->error();
+          return TREEBUILDER_STATUS_IGNORE;
+        }
 
         treebuilder->generate_implied_end_tags();
 
@@ -1868,7 +1914,11 @@ in_caption_mode(TreeBuilder *treebuilder,
 
 
       case HTML_ELEMENT_TABLE: {
-        /* XXX: ... in table scope */
+        if (! treebuilder->have_element_in_table_scope(HTML_ELEMENT_CAPTION)) {
+          /* fragment case */
+          treebuilder->error();
+          return TREEBUILDER_STATUS_IGNORE;
+        }
 
         treebuilder->generate_implied_end_tags();
 
@@ -1916,7 +1966,11 @@ in_caption_mode(TreeBuilder *treebuilder,
       case HTML_ELEMENT_CAPTION: case HTML_ELEMENT_COL:   case HTML_ELEMENT_COLGROUP:
       case HTML_ELEMENT_TBODY:   case HTML_ELEMENT_TD:    case HTML_ELEMENT_TFOOT:
       case HTML_ELEMENT_TH:      case HTML_ELEMENT_THEAD: case HTML_ELEMENT_TR: {
-        /* XXX: ... in table scope */
+        if (! treebuilder->have_element_in_table_scope(HTML_ELEMENT_CAPTION)) {
+          /* fragment case */
+          treebuilder->error();
+          return TREEBUILDER_STATUS_IGNORE;
+        }
 
         treebuilder->generate_implied_end_tags();
 
@@ -2210,6 +2264,21 @@ in_table_body_mode(TreeBuilder *treebuilder,
 }
 
 
+static void
+clear_stack_to_table_row_context(TreeBuilder *treebuilder)
+{
+  std::shared_ptr< DOM_Element> popped;
+
+  do {
+    popped = treebuilder->open_elements.back();
+    treebuilder->open_elements.pop_back();
+  } while (! (popped->has_html_element_index(HTML_ELEMENT_TR)
+           || popped->has_html_element_index(HTML_ELEMENT_TEMPLATE)
+           || popped->has_html_element_index(HTML_ELEMENT_HTML)));
+
+}
+
+
 static enum treebuilder_status
 in_row_mode(TreeBuilder *treebuilder,
             union token_data *token_data,
@@ -2217,11 +2286,97 @@ in_row_mode(TreeBuilder *treebuilder,
 {
   LOGF("in row mode\n");
 
-  (void) treebuilder;
-  (void) token_data;
-  (void) token_type;
+  if (token_type == TOKEN_START_TAG) {
+    struct tag_token *tag = &token_data->tag;
 
-  return TREEBUILDER_STATUS_OK;
+    switch (tag->local_name)
+    {
+      case HTML_ELEMENT_TH: case HTML_ELEMENT_TD: {
+        clear_stack_to_table_row_context(treebuilder);
+
+        treebuilder->insert_html_element(tag);
+
+        treebuilder->mode = IN_CELL_MODE;
+
+        /* XXX: insert marker */
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_CAPTION: case HTML_ELEMENT_COL:   case HTML_ELEMENT_COLGROUP:
+      case HTML_ELEMENT_TBODY:   case HTML_ELEMENT_TFOOT: case HTML_ELEMENT_THEAD:
+      case HTML_ELEMENT_TR: {
+        if (! treebuilder->have_element_in_table_scope(HTML_ELEMENT_TR)) {
+          treebuilder->error();
+          return TREEBUILDER_STATUS_IGNORE;
+        }
+
+        clear_stack_to_table_row_context(treebuilder);
+
+        treebuilder->open_elements.pop_back();
+
+        treebuilder->mode = IN_TABLE_BODY_MODE;
+
+        return TREEBUILDER_STATUS_REPROCESS;
+      }
+
+      default:
+        break;
+    }
+
+    goto anything_else;
+  }
+
+
+  if (token_type == TOKEN_END_TAG) {
+    struct tag_token *tag = &token_data->tag;
+
+    switch (tag->local_name)
+    {
+      case HTML_ELEMENT_TR: {
+        if (! treebuilder->have_element_in_table_scope(HTML_ELEMENT_TR)) {
+          treebuilder->error();
+          return TREEBUILDER_STATUS_IGNORE;
+        }
+
+        clear_stack_to_table_row_context(treebuilder);
+
+        treebuilder->open_elements.pop_back();
+
+        treebuilder->mode = IN_TABLE_BODY_MODE;
+
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_TABLE: {
+        if (! treebuilder->have_element_in_table_scope(HTML_ELEMENT_TR)) {
+          treebuilder->error();
+          return TREEBUILDER_STATUS_IGNORE;
+        }
+
+        clear_stack_to_table_row_context(treebuilder);
+
+        treebuilder->open_elements.pop_back();
+
+        treebuilder->mode = IN_TABLE_BODY_MODE;
+
+        return TREEBUILDER_STATUS_REPROCESS;
+      }
+
+
+      default:
+        break;
+    }
+
+    goto anything_else;
+  }
+
+
+  anything_else: {
+    return in_table_mode(treebuilder, token_data, token_type);
+  }
+
 }
 
 
@@ -2255,11 +2410,84 @@ in_cell_mode(TreeBuilder *treebuilder,
 {
   LOGF("in cell mode\n");
 
-  (void) treebuilder;
-  (void) token_data;
-  (void) token_type;
+  if (token_type == TOKEN_END_TAG) {
+    struct tag_token *tag = &token_data->tag;
 
-  return TREEBUILDER_STATUS_OK;
+    switch (tag->local_name)
+    {
+      case HTML_ELEMENT_TD: case HTML_ELEMENT_TH: {
+        if (! treebuilder->have_element_in_table_scope(
+               static_cast<enum html_element_index>(tag->local_name))) {
+          treebuilder->error();
+          return TREEBUILDER_STATUS_IGNORE;
+        }
+
+        treebuilder->generate_implied_end_tags();
+
+        if (! treebuilder->current_node()->has_html_element_index(tag->local_name))
+          treebuilder->error();
+
+        std::shared_ptr< DOM_Element> popped;
+
+        do {
+          popped = treebuilder->open_elements.back();
+          treebuilder->open_elements.pop_back();
+        } while (! popped->has_html_element_index(tag->local_name));
+
+        /* XXX: clear list of active formatting elements */
+
+        treebuilder->mode = IN_ROW_MODE;
+
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_BODY:     case HTML_ELEMENT_CAPTION: case HTML_ELEMENT_COL:
+      case HTML_ELEMENT_COLGROUP: case HTML_ELEMENT_HTML: {
+        treebuilder->error();
+        return TREEBUILDER_STATUS_IGNORE;
+      }
+
+
+      case HTML_ELEMENT_TABLE: case HTML_ELEMENT_TBODY: case HTML_ELEMENT_TFOOT:
+      case HTML_ELEMENT_THEAD: case HTML_ELEMENT_TR: {
+        if (! treebuilder->have_element_in_table_scope(
+               static_cast<enum html_element_index>(tag->local_name))) {
+          treebuilder->error();
+          return TREEBUILDER_STATUS_IGNORE;
+        }
+
+        close_cell(treebuilder);
+
+        return TREEBUILDER_STATUS_REPROCESS;
+      }
+
+
+      default:
+        break;
+    }
+
+    goto anything_else;
+  }
+
+
+  if (token_type == TOKEN_START_TAG) {
+    struct tag_token *tag = &token_data->tag;
+
+    switch (tag->local_name)
+    {
+      default:
+        break;
+    }
+
+    goto anything_else;
+  }
+
+
+  anything_else: {
+    return in_body_mode(treebuilder, token_data, token_type);
+  }
+
 }
 
 
@@ -2270,11 +2498,209 @@ in_select_mode(TreeBuilder *treebuilder,
 {
   LOGF("in select mode\n");
 
-  (void) treebuilder;
-  (void) token_data;
-  (void) token_type;
+  if (token_type == TOKEN_CHARACTER || token_type == TOKEN_WHITESPACE) {
+    if (token_data->ch == U'\0') {
+      treebuilder->error();
+      return TREEBUILDER_STATUS_IGNORE;
+    }
 
-  return TREEBUILDER_STATUS_OK;
+    treebuilder->insert_character(token_data->ch);
+    return TREEBUILDER_STATUS_OK;
+  }
+
+
+  if (token_type == TOKEN_COMMENT) {
+    treebuilder->insert_comment(&token_data->comment);
+    return TREEBUILDER_STATUS_OK;
+  }
+
+
+  if (token_type == TOKEN_DOCTYPE) {
+    treebuilder->error();
+    return TREEBUILDER_STATUS_IGNORE;
+  }
+
+
+  if (token_type == TOKEN_START_TAG) {
+    struct tag_token *tag = &token_data->tag;
+
+    switch (tag->local_name)
+    {
+      case HTML_ELEMENT_HTML: {
+        return in_body_mode(treebuilder, token_data, token_type);
+      }
+
+
+      case HTML_ELEMENT_OPTION: {
+        if (treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_OPTION))
+          treebuilder->open_elements.pop_back();
+
+        treebuilder->insert_html_element(tag);
+
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_OPTGROUP: {
+        if (treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_OPTION))
+          treebuilder->open_elements.pop_back();
+
+        if (treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_OPTGROUP))
+          treebuilder->open_elements.pop_back();
+
+        treebuilder->insert_html_element(tag);
+
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_HR: {
+        if (treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_OPTION))
+          treebuilder->open_elements.pop_back();
+
+        if (treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_OPTGROUP))
+          treebuilder->open_elements.pop_back();
+
+        treebuilder->insert_html_element(tag);
+
+        treebuilder->open_elements.pop_back();
+
+        treebuilder->acknowledge_self_closing_flag(tag);
+
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_SELECT: {
+        treebuilder->error();
+
+        if (! treebuilder->have_element_in_select_scope(HTML_ELEMENT_SELECT)) {
+          /* fragment case */
+          return TREEBUILDER_STATUS_IGNORE;
+        }
+
+        std::shared_ptr< DOM_Element> popped;
+
+        do {
+          popped = treebuilder->open_elements.back();
+          treebuilder->open_elements.pop_back();
+        } while (! popped->has_html_element_index(HTML_ELEMENT_SELECT));
+
+        treebuilder->reset_insertion_mode_appropriately();
+
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_INPUT: case HTML_ELEMENT_KEYGEN: case HTML_ELEMENT_TEXTAREA: {
+        treebuilder->error();
+
+        if (! treebuilder->have_element_in_select_scope(HTML_ELEMENT_SELECT)) {
+          /* fragment case */
+          return TREEBUILDER_STATUS_IGNORE;
+        }
+
+        std::shared_ptr< DOM_Element> popped;
+
+        do {
+          popped = treebuilder->open_elements.back();
+          treebuilder->open_elements.pop_back();
+        } while (! popped->has_html_element_index(HTML_ELEMENT_SELECT));
+
+        treebuilder->reset_insertion_mode_appropriately();
+
+        return TREEBUILDER_STATUS_REPROCESS;
+      }
+
+
+      case HTML_ELEMENT_SCRIPT: case HTML_ELEMENT_TEMPLATE: {
+        return in_head_mode(treebuilder, token_data, token_type);
+      }
+
+
+      default:
+        break;
+    }
+
+    goto anything_else;
+  }
+
+
+  if (token_type == TOKEN_END_TAG) {
+    struct tag_token *tag = &token_data->tag;
+
+    switch (tag->local_name)
+    {
+      case HTML_ELEMENT_OPTGROUP: {
+        if (treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_OPTION)
+         && treebuilder->open_elements[
+             treebuilder->open_elements.size() - 2]->has_html_element_index(HTML_ELEMENT_OPTGROUP))
+          treebuilder->open_elements.pop_back();
+
+        if (treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_OPTGROUP)) {
+          treebuilder->open_elements.pop_back();
+          return TREEBUILDER_STATUS_OK;
+        }
+
+        treebuilder->error();
+        return TREEBUILDER_STATUS_IGNORE;
+      }
+
+
+      case HTML_ELEMENT_OPTION: {
+        if (treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_OPTION)) {
+          treebuilder->open_elements.pop_back();
+          return TREEBUILDER_STATUS_OK;
+        }
+
+        treebuilder->error();
+        return TREEBUILDER_STATUS_IGNORE;
+      }
+
+
+      case HTML_ELEMENT_SELECT: {
+        if (! treebuilder->have_element_in_select_scope(HTML_ELEMENT_SELECT)) {
+          /* fragment case */
+          treebuilder->error();
+          return TREEBUILDER_STATUS_IGNORE;
+        }
+
+        std::shared_ptr< DOM_Element> popped;
+
+        do {
+          popped = treebuilder->open_elements.back();
+          treebuilder->open_elements.pop_back();
+        } while (! popped->has_html_element_index(HTML_ELEMENT_SELECT));
+
+        treebuilder->reset_insertion_mode_appropriately();
+
+        return TREEBUILDER_STATUS_OK;
+      }
+
+
+      case HTML_ELEMENT_TEMPLATE: {
+        return in_head_mode(treebuilder, token_data, token_type);
+      }
+
+
+      default:
+        break;
+    }
+
+    goto anything_else;
+  }
+
+
+  if (token_type == TOKEN_EOF) {
+    return in_body_mode(treebuilder, token_data, token_type);
+  }
+
+
+  anything_else: {
+    treebuilder->error();
+    return TREEBUILDER_STATUS_IGNORE;
+  }
+
 }
 
 
@@ -2285,11 +2711,74 @@ in_select_in_table_mode(TreeBuilder *treebuilder,
 {
   LOGF("in select in table mode\n");
 
-  (void) treebuilder;
-  (void) token_data;
-  (void) token_type;
+  if (token_type == TOKEN_START_TAG) {
+    struct tag_token *tag = &token_data->tag;
 
-  return TREEBUILDER_STATUS_OK;
+    switch (tag->local_name)
+    {
+      case HTML_ELEMENT_CAPTION: case HTML_ELEMENT_TABLE: case HTML_ELEMENT_TBODY:
+      case HTML_ELEMENT_TFOOT:   case HTML_ELEMENT_THEAD: case HTML_ELEMENT_TR:
+      case HTML_ELEMENT_TD:      case HTML_ELEMENT_TH: {
+        treebuilder->error();
+
+        std::shared_ptr< DOM_Element> popped;
+
+        do {
+          popped = treebuilder->open_elements.back();
+          treebuilder->open_elements.pop_back();
+        } while (! popped->has_html_element_index(HTML_ELEMENT_SELECT));
+
+        treebuilder->reset_insertion_mode_appropriately();
+
+        return TREEBUILDER_STATUS_REPROCESS;
+      }
+
+      default:
+        break;
+    }
+
+    goto anything_else;
+  }
+
+
+  if (token_type == TOKEN_START_TAG) {
+    struct tag_token *tag = &token_data->tag;
+
+    switch (tag->local_name)
+    {
+      case HTML_ELEMENT_CAPTION: case HTML_ELEMENT_TABLE: case HTML_ELEMENT_TBODY:
+      case HTML_ELEMENT_TFOOT:   case HTML_ELEMENT_THEAD: case HTML_ELEMENT_TR:
+      case HTML_ELEMENT_TD:      case HTML_ELEMENT_TH: {
+        treebuilder->error();
+
+        if (! treebuilder->have_element_in_table_scope(
+               static_cast<enum html_element_index>(tag->local_name)))
+          return TREEBUILDER_STATUS_IGNORE;
+
+        std::shared_ptr< DOM_Element> popped;
+
+        do {
+          popped = treebuilder->open_elements.back();
+          treebuilder->open_elements.pop_back();
+        } while (! popped->has_html_element_index(HTML_ELEMENT_SELECT));
+
+        treebuilder->reset_insertion_mode_appropriately();
+
+        return TREEBUILDER_STATUS_REPROCESS;
+      }
+
+      default:
+        break;
+    }
+
+    goto anything_else;
+  }
+
+
+  anything_else: {
+    return in_select_mode(treebuilder, token_data, token_type);
+  }
+
 }
 
 

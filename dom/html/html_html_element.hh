@@ -11,8 +11,10 @@ class DOM_Document;
 
 class DOM_HTMLHtmlElement : public DOM_HTMLElement {
   public:
-    DOM_HTMLHtmlElement(std::shared_ptr< DOM_Document> document)
-    : DOM_HTMLElement(document) {}
+    DOM_HTMLHtmlElement(std::shared_ptr< DOM_Document> document,
+                        enum InfraNamespace name_space,
+                        uint16_t local_name)
+    : DOM_HTMLElement(document, name_space, local_name) {}
     virtual ~DOM_HTMLHtmlElement() { }
 };
 

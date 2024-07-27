@@ -12,6 +12,7 @@ CXXFLAGS += -I.
 SRCS =\
 	browser/main\
 	\
+	html/dom\
 	html/elements\
 	\
 	html_parser/insertion_modes\
