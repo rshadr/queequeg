@@ -17,6 +17,42 @@ DOM_Node::DOM_Node(std::shared_ptr< DOM_Document> node_document,
 }
 
 
+std::shared_ptr< DOM_Node>
+DOM_Node::get_previous_sibling(void)
+{
+  if (this->parent_node.lock() == nullptr)
+    return nullptr;
+
+  for (std::shared_ptr< DOM_Node> cur_node =
+        std::dynamic_pointer_cast<DOM_Node>(this->shared_from_this());
+       cur_node->parent_node.lock() != nullptr;
+       cur_node = cur_node->parent_node.lock())
+  {
+    std::shared_ptr< DOM_Node> cur_parent = cur_node->parent_node.lock();
+
+    if (cur_parent->child_nodes.front() == cur_node) {
+      /*
+       * No other node precedes the current one in the parent's list of children
+       */
+      continue;
+    }
+
+
+    /* XXX: ugly; also kinda hacky */
+
+    int i;
+
+    for (i = 0; i < static_cast<long int>(cur_parent->child_nodes.size()); i++)
+      if (cur_parent->child_nodes[i] == cur_node)
+        break;
+
+    return cur_parent->child_nodes[i - 1];
+  }
+
+  return nullptr;
+}
+
+
 void
 DOM_Node::insert_node(std::shared_ptr< DOM_Node> node,
                       std::shared_ptr< DOM_Node> child,

@@ -3,3 +3,4 @@ build
 *.core
 vgcore.*
 massif.out.*
+perf.*

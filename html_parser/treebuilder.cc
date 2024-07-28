@@ -7,11 +7,20 @@
 #include <ranges>
 #include <set>
 
-#include <assert.h>
+#include <cassert>
+#include <cstdio>
 
+#include "html_parser/internal.hh"
 
-#include "html_parser/common.hh"
 #include "dom/core/document.hh"
+#include "dom/core/text.hh"
+#include "dom/core/comment.hh"
+
+#include "qglib/unicode.hh"
+
+
+#define LOGF(fmt, ...) \
+  std::fprintf(stderr, (fmt), __VA_ARGS__)
 
 #define TREEBUILDER_PROCESS_TOKENS
 // #undef TREEBUILDER_PROCESS_TOKENS
@@ -19,24 +28,7 @@
 
 TreeBuilder::TreeBuilder(std::shared_ptr< DOM_Document> document)
 {
-
   this->document = document;
-
-  this->script_nesting_level = 0;
-
-  this->mode = INITIAL_MODE;
-
-
-  this->flags = {
-    .fragment_parse   = false,
-    .scripting        = false,
-    .frameset_ok      = true,
-    .foster_parenting = false,
-    .parser_pause     = false,
-  };
-
-  this->skip_newline = false;
-
 }
 
 
@@ -53,8 +45,8 @@ TreeBuilder::process_token(union token_data *token_data,
   enum treebuilder_status status;
 
 
-  if (this->skip_newline) {
-    this->skip_newline = false;
+  if (this->flags.skip_newline) {
+    this->flags.skip_newline = false;
 
     if (token_type == TOKEN_WHITESPACE
      && token_data->ch == U'\n')
@@ -94,8 +86,12 @@ TreeBuilder::reset_insertion_mode_appropriately(void)
 {
   bool last = false;
 
-  for (std::shared_ptr< DOM_Element> elem : std::ranges::views::reverse(this->open_elements))
+  for (int i = static_cast<int>(this->open_elements.size()) - 1; i >= 0; i--)
   {
+    const int elem_idx = i;
+    const int node_idx = elem_idx;
+
+    std::shared_ptr< DOM_Element> elem = this->open_elements[elem_idx];
     /*
      * Separate pointer copy for the fragment case
      */
@@ -109,7 +105,25 @@ TreeBuilder::reset_insertion_mode_appropriately(void)
 
 
     if (node->has_html_element_index(HTML_ELEMENT_SELECT)) {
-      /* ... */
+      if (! last) {
+        int ancestor_idx = node_idx;
+        std::shared_ptr< DOM_Element> ancestor = this->open_elements[ancestor_idx];
+
+        while (ancestor_idx > 0) {
+          ancestor = this->open_elements[--ancestor_idx];
+
+          if (ancestor->has_html_element_index(HTML_ELEMENT_TEMPLATE))
+            break;
+
+          if (ancestor->has_html_element_index(HTML_ELEMENT_TABLE)) {
+            this->mode = IN_SELECT_IN_TABLE_MODE;
+            return;
+          }
+
+        }
+
+      }
+
       this->mode = IN_SELECT_MODE;
       return;
     }
@@ -384,7 +398,6 @@ TreeBuilder::have_target_node_in_scope_(std::vector< std::pair< uint16_t, uint16
 
 /*
  * Only these can be instantiated
- * XXX: remove useless instances (html_element_index antecedents)
  */
 template
 bool TreeBuilder::have_target_node_in_scope_< std::shared_ptr< DOM_Element>>(
@@ -579,6 +592,25 @@ TreeBuilder::create_element_for_token(struct tag_token const *tag,
 }
 
 
+std::shared_ptr< DOM_Node>
+TreeBuilder::node_before(InsertionLocation location)
+{
+  /*
+   * XXX: very sus function
+   */
+
+  if (location.parent != nullptr
+   && location.child != nullptr)
+    return location.child->get_previous_sibling();
+
+  if (location.parent != nullptr
+   && location.child == nullptr)
+    return location.parent->get_previous_sibling();
+
+  return nullptr;
+}
+
+
 void
 TreeBuilder::insert_element_at_location(InsertionLocation location,
                                         std::shared_ptr< DOM_Element> element) const
@@ -631,14 +663,35 @@ TreeBuilder::insert_html_element(struct tag_token const *tag)
 void
 TreeBuilder::insert_character_array_(char32_t const *arr, size_t arr_len)
 {
-  /* XXX: magic happens here */
-  (void) arr;
-  (void) arr_len;
+  InsertionLocation location = this->appropriate_insertion_place();
+
+  if (location.parent->is_document())
+    return;
+
+  std::shared_ptr< DOM_Node> prev_sibling = TreeBuilder::node_before(location);
+
+  LOGF("{ %p, %p }\n",
+    reinterpret_cast<void *>(location.parent.get()),
+    reinterpret_cast<void *>(location.child.get()));
+
+  std::shared_ptr< DOM_Text> text = nullptr;
+
+  if ((prev_sibling != nullptr) && prev_sibling->is_text()) {
+    text = std::dynamic_pointer_cast<DOM_Text>(prev_sibling);
+  } else {
+    text = std::make_shared<DOM_Text>(this->document);
+    location.parent->insert_node(std::dynamic_pointer_cast<DOM_Node>(text),
+     location.child);
+  }
+
+  for (int i = 0; i < static_cast<long int>(arr_len); i++)
+    QueequegLib::append_c32_as_utf8(&text->data, arr[i]);
+
 }
 
 
 void
-TreeBuilder::insert_characters(std::vector< char32_t> *vch)
+TreeBuilder::insert_characters(std::vector< char32_t> const *vch)
 {
   this->insert_character_array_(vch->data(), vch->size());
 }
@@ -653,15 +706,15 @@ TreeBuilder::insert_character(char32_t ch)
 
 void
 TreeBuilder::insert_comment(std::string *data,
-                            InsertionLocation where)
+                            InsertionLocation location)
 {
-  // if (where.parent == nullptr)
-  //   where = this->appropriate_node_place();
+  std::shared_ptr< DOM_Comment> comment =
+   std::make_shared<DOM_Comment>(location.parent->node_document.lock(),
+                                 *data);
 
-  (void) data;
-  (void) where;
+  location.parent->insert_node(std::dynamic_pointer_cast<DOM_Node>(comment),
+   location.child);
 
-  /* ... */
 }
 
 

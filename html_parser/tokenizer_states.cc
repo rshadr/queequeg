@@ -35,7 +35,7 @@
 
 #include "qglib/unicode.hh"
 
-#include "html_parser/common.hh"
+#include "html_parser/internal.hh"
 
 
 

@@ -1,12 +1,12 @@
-#ifndef _queequeg_html_parser_common_hh_
-#define _queequeg_html_parser_common_hh_
+#ifndef _queequeg_html_parser_internal_hh_
+#define _queequeg_html_parser_internal_hh_
 
 /*
  * Copyright 2024 Adrien Ricciardi
  * This file is part of the queequeg distribution (https://github.com/rshadr/queequeg)
  * See LICENSE for details
  *
- * File: html_parser/common.hh
+ * File: html_parser/internal.hh
  *
  * Description:
  * This file contains all that's necessary for the individual components to work
@@ -217,7 +217,7 @@ enum tokenizer_status {
 };
 
 
-class Tokenizer {
+class Tokenizer final {
   public:
       Tokenizer(char const *input, size_t input_len);
     ~Tokenizer();
@@ -234,7 +234,7 @@ class Tokenizer {
       char const *end;
     } input;
 
-    TreeBuilder *treebuilder;
+    TreeBuilder *treebuilder = nullptr;
 
     struct doctype_token doctype;
     struct tag_token tag;
@@ -251,7 +251,7 @@ class Tokenizer {
      */
     std::string *attr_value;
 
-    enum tokenizer_state state;
+    enum tokenizer_state state = DATA_STATE;
     enum tokenizer_state ret_state;
 
     enum token_type tag_type;
@@ -379,7 +379,7 @@ concept ScopeTargetable = std::same_as< T, std::shared_ptr< DOM_Element>>
                        || std::same_as< T, enum html_element_index>;
 
 
-class TreeBuilder {
+class TreeBuilder final {
   public:
       TreeBuilder(std::shared_ptr< DOM_Document> document);
     ~TreeBuilder();
@@ -391,13 +391,13 @@ class TreeBuilder {
     typedef enum treebuilder_status (*insertion_mode_handler_cb_t)
      (TreeBuilder *treebuilder, union token_data *token_data, enum token_type);
 
-    Tokenizer *tokenizer;
+    Tokenizer *tokenizer = nullptr;
 
-    std::shared_ptr< DOM_Document> document;
-    std::shared_ptr< DOM_Element> context;
+    std::shared_ptr< DOM_Document> document = nullptr;
+    std::shared_ptr< DOM_Element>  context = nullptr;
 
-    std::shared_ptr< DOM_HTMLHeadElement> head;
-    std::shared_ptr< DOM_Element> form;
+    std::shared_ptr< DOM_HTMLHeadElement> head = nullptr;
+    std::shared_ptr< DOM_Element>         form = nullptr;
 
     std::vector< std::shared_ptr< DOM_Element>> open_elements;
     std::list< std::shared_ptr< DOM_Element>> formatting_elements;
@@ -406,20 +406,20 @@ class TreeBuilder {
 
     std::vector< enum insertion_mode> template_modes;
 
-    uint16_t script_nesting_level;
+    uint16_t script_nesting_level = 0;
 
     enum insertion_mode mode = INITIAL_MODE;
     enum insertion_mode original_mode;
 
     struct {
-      bool fragment_parse;
-      bool scripting;
-      bool frameset_ok;
-      bool foster_parenting;
-      bool parser_pause;
+      bool fragment_parse   = false;
+      bool scripting        = false;
+      bool frameset_ok      = true;
+      bool foster_parenting = false;
+      bool parser_pause     = false;
+      bool skip_newline     = false;
     } flags;
 
-    bool skip_newline;
 
 
     /*
@@ -574,6 +574,8 @@ class TreeBuilder {
                              enum InfraNamespace name_space,
                              std::shared_ptr< DOM_Node> intended_parent);
 
+    static std::shared_ptr< DOM_Node> node_before(InsertionLocation location);
+
     void insert_element_at_location(InsertionLocation location,
                                     std::shared_ptr< DOM_Element> element) const;
 
@@ -584,7 +586,7 @@ class TreeBuilder {
 
     std::shared_ptr< DOM_Element> insert_html_element(struct tag_token const *tag);
 
-    void insert_characters(std::vector< char32_t> *vch);
+    void insert_characters(std::vector< char32_t> const *vch);
     void insert_character(char32_t ch);
 
     void insert_comment(std::string *data, InsertionLocation where);
@@ -614,5 +616,5 @@ class TreeBuilder {
 
 // extern TreeBuilder::insertion_mode_handler_cb_t k_insertion_modes[NUM_MODES];
 
-#endif /* !defined(_queequeg_html_parser_common_hh_) */
+#endif /* !defined(_queequeg_html_parser_internal_hh_) */
 

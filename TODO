@@ -3,7 +3,6 @@
 
     ===< DOM >===
 [ ] Better protect DOM access
-[ ] Add "name_space" and "local_name" parameters to DOM_Element ctor
 
     ===< HTML PARSER >===
 [ ] DOM interfaces for HTML elements !!!
@@ -14,4 +13,9 @@
 
 [ ] Text support
 [ ] Tag attribute support
-[ ] Comment support
+[ ] Comment support#
+
+[ ] Use references for std::string in DOM_CharacterData derived classes?
+
+[ ] HTML Parser: list of active formatting elements
+[ ] HTML Parser: adoption agency algorithm

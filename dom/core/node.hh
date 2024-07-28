@@ -40,17 +40,33 @@ class DOM_Node : public DOM_EventTarget {
     std::weak_ptr< DOM_Node> parent_node;
     std::vector< std::shared_ptr< DOM_Node>> child_nodes;
 
+
+    std::shared_ptr< DOM_Node> get_previous_sibling(void);
+
     void insert_node(std::shared_ptr< DOM_Node> node,
                      std::shared_ptr< DOM_Node> child,
                      bool supp_observers = false);
 
     void append_node(std::shared_ptr< DOM_Node> node, bool supp_observers = false);
 
+
   public:
     inline bool
-    is_element(void)
+    is_element(void) const
     {
-      return this->node_type == DOM_NODETYPE_ELEMENT;
+      return (this->node_type == DOM_NODETYPE_ELEMENT);
+    }
+
+    inline bool
+    is_text(void) const
+    {
+      return (this->node_type == DOM_NODETYPE_TEXT);
+    }
+
+    inline bool
+    is_document(void) const
+    {
+      return (this->node_type == DOM_NODETYPE_DOCUMENT);
     }
 
 };

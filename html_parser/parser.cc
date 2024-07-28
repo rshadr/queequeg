@@ -10,7 +10,7 @@
 #include <cstdlib>
 
 #include "html_parser/parser.hh"
-#include "html_parser/common.hh"
+#include "html_parser/internal.hh"
 
 #include "dom/core/document.hh"
 
@@ -21,6 +21,9 @@ static struct {
 } signal_handler_shared;
 
 
+/*
+ * cheap hack to roughly know where we are in the source document
+ */
 [[noreturn]]
 static void
 sigsegv_handler(int signal)

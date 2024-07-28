@@ -14,7 +14,7 @@
 
 #include "qglib/unicode.hh"
 
-#include "html_parser/common.hh"
+#include "html_parser/internal.hh"
 
 
 #define LOGF(...) \
@@ -30,8 +30,6 @@ const std::unordered_map< std::string, uint16_t> Tokenizer::k_quirky_local_names
 
 Tokenizer::Tokenizer(char const *input, size_t input_len)
 {
-  this->state = DATA_STATE;
-
   this->input.p   = input;
   this->input.end = &input[input_len];
 }

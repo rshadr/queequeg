@@ -22,7 +22,7 @@
 #include "dom/html/html_script_element.hh"
 #include "html/elements.hh"
 
-#include "html_parser/common.hh"
+#include "html_parser/internal.hh"
 
 #if !defined NDEBUG
 # define LOGF(...) \
@@ -723,6 +723,61 @@ close_p_element(TreeBuilder *treebuilder)
 }
 
 
+#if 0
+static int
+adoption_agency_algorithm(TreeBuilder *treebuilder,
+                          struct tag_token *tag)
+{
+  (void) treebuilder;
+  (void) tag;
+
+  int outer_counter = 0;
+
+  while (true)
+  {
+    if (outer_counter >= 8)
+      return 0;
+
+    outer_counter++;
+
+    std::shared_ptr< DOM_Element> formatting_element = nullptr;
+    /* XXX: assign */
+
+    /* XXX: not in stack? ... */
+    /* XXX: not in scope? ... */
+
+    if (formatting_element != treebuilder->current_node())
+      treebuilder->error();
+
+    std::shared_ptr< DOM_Element> furthest_block = nullptr;
+    /* XXX: assign */
+
+    /* XXX: no furthest_block? ... */
+
+    std::shared_ptr< DOM_Element> common_ancestor = nullptr;
+    /* XXX: assign */
+
+    /* XXX: bookmark */
+
+    /* XXX: node and lastNode */
+
+    int inner_loop = 0;
+
+    while (true)
+    {
+      inner_loop++;
+
+      /* ... */
+    }
+
+    /* ... */
+  }
+
+  return 0;
+}
+#endif
+
+
 static enum treebuilder_status
 in_body_mode(TreeBuilder *treebuilder,
              union token_data *token_data,
@@ -879,7 +934,7 @@ in_body_mode(TreeBuilder *treebuilder,
         treebuilder->insert_html_element(tag);
 
         treebuilder->insert_html_element(tag);
-        treebuilder->skip_newline = true;
+        treebuilder->flags.skip_newline = true;
         treebuilder->flags.frameset_ok = false;
 
         return TREEBUILDER_STATUS_OK;
@@ -1140,7 +1195,7 @@ in_body_mode(TreeBuilder *treebuilder,
       case HTML_ELEMENT_TEXTAREA: {
         treebuilder->insert_html_element(tag);
 
-        treebuilder->skip_newline = true;
+        treebuilder->flags.skip_newline = true;
 
         treebuilder->tokenizer->state = RCDATA_STATE;
         treebuilder->original_mode = treebuilder->mode;
