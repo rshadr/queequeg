@@ -52,9 +52,9 @@ class DOM_Document : public DOM_Node {
     virtual ~DOM_Document();
 
   public:
-    std::shared_ptr< DOM_DocumentType> doctype;
+    std::shared_ptr< DOM_DocumentType> doctype = nullptr;
 
-    enum dom_document_parser_status parser_status;
+    enum dom_document_parser_status parser_status = DOM_DOCUMENT_PARSER_STATUS_UNAVAILABLE;
 
     enum dom_document_format       document_format;
     enum dom_document_quirks_mode  quirks_mode;

@@ -13,10 +13,10 @@ class DOM_Document;
 
 class DOM_CharacterData : public DOM_Node {
   protected:
-    DOM_CharacterData(std::shared_ptr< DOM_Document> document,
+    DOM_CharacterData(std::shared_ptr< DOM_Document> node_document,
                       enum dom_node_type node_type,
                       std::string data = "")
-  : DOM_Node(document, node_type)
+  : DOM_Node(node_document, node_type)
   {
     this->data = data;
   }

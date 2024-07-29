@@ -22,7 +22,6 @@ SRCS =\
 	html_parser/treebuilder\
 	\
 	dom/core/document\
-	dom/core/document_type\
 	dom/core/element\
 	dom/core/node\
 	\

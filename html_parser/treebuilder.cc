@@ -3,6 +3,7 @@
  * This file is part of the queequeg distribution (https://github.com/rshadr/queequeg)
  * See LICENSE for details
  */
+#include <algorithm>
 #include <iterator>
 #include <ranges>
 #include <set>
@@ -319,6 +320,31 @@ TreeBuilder::is_special_element(std::shared_ptr< DOM_Element> element) const
 }
 
 
+/*
+ * This is used to determine whether we allocate a copy of the tag_token or
+ * not when creating the element.
+ */
+bool
+TreeBuilder::is_formatting_element(std::shared_ptr< DOM_Element> element) const
+{
+  if (element->name_space != INFRA_NAMESPACE_HTML)
+    return false;
+
+  switch (element->local_name)
+  {
+    case HTML_ELEMENT_A:     case HTML_ELEMENT_B:      case HTML_ELEMENT_BIG:
+    case HTML_ELEMENT_CODE:  case HTML_ELEMENT_EM:     case HTML_ELEMENT_FONT:
+    case HTML_ELEMENT_I:     case HTML_ELEMENT_NOBR:   case HTML_ELEMENT_S:
+    case HTML_ELEMENT_SMALL: case HTML_ELEMENT_STRIKE: case HTML_ELEMENT_STRONG:
+    case HTML_ELEMENT_TT:    case HTML_ELEMENT_U:
+      return true;
+
+    default:
+      return false;
+  }
+
+}
+
 
 /*
  * "in scope" algorithms; see 'html_parser/common.h' for details
@@ -463,19 +489,135 @@ const std::vector< std::pair< uint16_t, uint16_t>> TreeBuilder::k_select_scope_d
 #undef PARTICULAR_ELEMENT_SCOPE_DEF
 
 
+void
+TreeBuilder::push_formatting_marker(void)
+{
+  this->formatting_elements.push_back(this->FORMATTING_MARKER);
+}
+
+
+bool
+TreeBuilder::same_parsed_elements(std::shared_ptr< DOM_Element> lhs,
+                                  std::shared_ptr< DOM_Element> rhs) const
+{
+  /*
+   * XXX: HTML lock-in?
+   */
+
+  if (! (lhs->name_space == rhs->name_space
+      && lhs->local_name == rhs->local_name))
+    return false;
+
+  /* XXX: compare attributes */
+
+  return true;
+}
+
 
 void
 TreeBuilder::push_to_active_formatting_elements(std::shared_ptr< DOM_Element> element)
 {
-  /* ... */
-  (void) element;
+  /* Step 1. */
+  std::shared_ptr< DOM_Element> fitting_entry = nullptr;
+  int n_fitting_entries = 0;
+
+  for (const auto &entry : std::ranges::views::reverse(this->formatting_elements))
+  {
+    if (entry == this->FORMATTING_MARKER)
+      break;
+
+    if (this->same_parsed_elements(entry, element)) {
+      n_fitting_entries++;
+      fitting_entry = entry;
+    }
+
+  }
+
+  if (n_fitting_entries >= 3)
+    this->formatting_elements.remove(fitting_entry);
+
+  /* Step 2. */
+  this->formatting_elements.push_back(element);
 }
 
 
 void
 TreeBuilder::reconstruct_active_formatting_elements(void)
 {
-  /* ... */
+  /* Step 1. */
+  if (this->formatting_elements.empty())
+    return;
+
+  /* Step 2. */
+  auto& stack = this->open_elements;
+
+  if (this->formatting_elements.back() == this->FORMATTING_MARKER
+   || std::find(stack.begin(), stack.end(), this->formatting_elements.back()) != stack.end())
+    return;
+
+  /* Step 3. */
+  auto entry_it = std::prev(this->formatting_elements.end());
+
+  /* Step 4. */
+rewind:
+  if (entry_it == this->formatting_elements.begin())
+    goto create;
+
+  /* Step 5. */
+  entry_it--;
+
+  /* Step 6. */
+  if (*entry_it != this->FORMATTING_MARKER
+   && std::find(stack.begin(), stack.end(), *entry_it) == stack.end())
+    goto rewind;
+
+  /* Step 7. */
+advance:
+  entry_it++;
+
+  /* Step 8. */
+create:
+  struct tag_token *tag = static_cast<struct tag_token *>((*entry_it)->parser_token);
+  std::shared_ptr< DOM_Element> new_element = std::dynamic_pointer_cast<DOM_Element>(
+   this->insert_html_element(tag));
+
+  /* Step 9. */
+  (*entry_it)->parser_token = nullptr;
+  // delete tag;
+  *entry_it = new_element;
+  auto new_element_it = entry_it;
+
+
+  /* Step 10. */
+  if (new_element_it != std::prev(this->formatting_elements.end()))
+    goto advance;
+}
+
+
+void
+TreeBuilder::clear_active_formatting_elements_to_marker(void)
+{
+
+  while (true)  {
+    /* Step 1. */
+    auto entry_it = std::prev(this->formatting_elements.end());
+
+    /* Step 2. */
+    std::shared_ptr< DOM_Element> entry = *entry_it;
+    struct tag_token *tag = static_cast<struct tag_token *>(entry->parser_token);
+
+    entry->parser_token = nullptr;
+    delete tag;
+
+    this->formatting_elements.erase(entry_it);
+
+    /* Step 3. */
+    if (entry == this->FORMATTING_MARKER)
+      return;
+
+    /* Step 4. LOOP */
+  }
+
 }
 
 
@@ -588,6 +730,12 @@ TreeBuilder::create_element_for_token(struct tag_token const *tag,
   /* ... */
 
 
+  /*
+   * Needed for the list of active formatting elements
+   */
+  if (this->is_formatting_element(element))
+    element->parser_token = static_cast<void *>(new tag_token(*tag));
+
   return element;
 }
 
@@ -670,9 +818,11 @@ TreeBuilder::insert_character_array_(char32_t const *arr, size_t arr_len)
 
   std::shared_ptr< DOM_Node> prev_sibling = TreeBuilder::node_before(location);
 
+#if 0
   LOGF("{ %p, %p }\n",
     reinterpret_cast<void *>(location.parent.get()),
     reinterpret_cast<void *>(location.child.get()));
+#endif
 
   std::shared_ptr< DOM_Text> text = nullptr;
 

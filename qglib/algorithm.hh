@@ -3,17 +3,15 @@
 
 
 #include <algorithm>
-
+#include <iterator>
 
 namespace QueequegLib {
 
-#if 0
-  template< typename T>
-  contains_if(const T& cont)
+  template< class T, class U> requires std::input_iterator<T>
+  check_contains(T first, T last, const U& value)
   {
-    return
+    return (std::find_if(first, last, value) != last);
   }
-#endif
 
 };
 

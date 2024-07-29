@@ -399,12 +399,27 @@ class TreeBuilder final {
     std::shared_ptr< DOM_HTMLHeadElement> head = nullptr;
     std::shared_ptr< DOM_Element>         form = nullptr;
 
-    std::vector< std::shared_ptr< DOM_Element>> open_elements;
-    std::list< std::shared_ptr< DOM_Element>> formatting_elements;
+    std::vector< std::shared_ptr< DOM_Element>> open_elements = { };
+    std::list< std::shared_ptr< DOM_Element>> formatting_elements = { };
 
-    std::vector< char32_t> pending_table_characters;
+#if 0
+    /*
+     * hacky way to get an unique address to signify markers
+     */
+    std::shared_ptr< DOM_Element> FORMATTING_MARKER =
+     std::shared_ptr< DOM_Element>((DOM_Element *)(0xDEADBEEF),
+      [](DOM_Element *){});
+#endif
 
-    std::vector< enum insertion_mode> template_modes;
+    /*
+     * dummy element to get an unique address
+     */
+    std::shared_ptr< DOM_Element> FORMATTING_MARKER =
+     std::make_shared<DOM_Element>(nullptr, INFRA_NAMESPACE_NULL, 0);
+
+    std::vector< char32_t> pending_table_characters = { };
+
+    std::vector< enum insertion_mode> template_modes = { };
 
     uint16_t script_nesting_level = 0;
 
@@ -468,6 +483,7 @@ class TreeBuilder final {
     }
 
     bool is_special_element(std::shared_ptr< DOM_Element> element) const;
+    bool is_formatting_element(std::shared_ptr< DOM_Element> element) const;
 
 
   /*
@@ -559,10 +575,12 @@ class TreeBuilder final {
 
 
   public:
-    
+    void push_formatting_marker(void);
+    bool same_parsed_elements(std::shared_ptr< DOM_Element> lhs,
+                              std::shared_ptr< DOM_Element> rhs) const;
     void push_to_active_formatting_elements(std::shared_ptr< DOM_Element> element);
-
     void reconstruct_active_formatting_elements(void);
+    void clear_active_formatting_elements_to_marker(void);
 
     void acknowledge_self_closing_flag(struct tag_token *tag) const;
 

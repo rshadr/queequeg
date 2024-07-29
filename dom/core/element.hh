@@ -23,7 +23,7 @@ enum dom_custom_element_state {
 
 class DOM_Element : public DOM_Node {
   public:
-    DOM_Element(std::shared_ptr< DOM_Document> document,
+    DOM_Element(std::shared_ptr< DOM_Document> node_document,
                 enum InfraNamespace name_space,
                 uint16_t local_name);
     virtual ~DOM_Element() { }
@@ -34,7 +34,12 @@ class DOM_Element : public DOM_Node {
     enum InfraNamespace name_space;
 
     void *custom_definition;
-    enum dom_custom_element_state custom_state;
+    enum dom_custom_element_state custom_state = DOM_CESTATE_UNDEFINED;
+
+    /*
+     * opaque pointer only used by the parser
+     */
+    void *parser_token = nullptr;
 
 
   public:
@@ -49,7 +54,7 @@ class DOM_Element : public DOM_Node {
     {
       return this->has_element_index(INFRA_NAMESPACE_HTML, local_name);
     }
-    
+
 };
 
 

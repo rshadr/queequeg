@@ -399,6 +399,8 @@ in_head_mode(TreeBuilder *treebuilder,
 
 
       case HTML_ELEMENT_TEMPLATE: {
+        treebuilder->push_formatting_marker();
+
         /* XXX: ... */
         return TREEBUILDER_STATUS_OK;
       }
@@ -454,6 +456,8 @@ in_head_mode(TreeBuilder *treebuilder,
           popped = treebuilder->open_elements.back();
           treebuilder->open_elements.pop_back();
         } while (! popped->has_html_element_index(HTML_ELEMENT_TEMPLATE));
+
+        treebuilder->clear_active_formatting_elements_to_marker();
 
         treebuilder->template_modes.pop_back();
 
@@ -723,59 +727,261 @@ close_p_element(TreeBuilder *treebuilder)
 }
 
 
-#if 0
+static void
+aa_inner_loop_(TreeBuilder *treebuilder,
+               std::shared_ptr< DOM_Element> formatting_element,
+               std::shared_ptr< DOM_Element> furthest_block,
+               std::shared_ptr< DOM_Element> common_ancestor,
+               std::shared_ptr< DOM_Element> *bookmark_p,
+               std::shared_ptr< DOM_Element> node,
+               std::shared_ptr< DOM_Element> *last_node_p)
+{
+  std::shared_ptr< DOM_Element> last_node = *last_node_p;
+
+  /* Step 4.12. */
+  int loop_counter = 0;
+  auto node_prev_it =
+   std::prev(std::find(treebuilder->open_elements.begin(),
+             treebuilder->open_elements.end(),
+             node));
+
+  /* Step 4.13. */
+  while (true)
+  {
+    /* Step 4.13.1. */
+    loop_counter++;
+
+    /* Step 4.13.2. */
+    {
+      auto node_it = std::find(treebuilder->open_elements.begin(),
+                               treebuilder->open_elements.end(),
+                               node);
+
+      node = (node_it != treebuilder->open_elements.end())
+           ? *std::prev(node_it)
+           : *node_prev_it;
+
+      if (node_it != treebuilder->open_elements.end())
+        node_prev_it = node_it;
+    }
+
+    /* Step 4.13.3. */
+    if (node == formatting_element)
+      break;
+
+    /* Step 4.13.4. */
+    if (loop_counter >= 3
+     && std::find(treebuilder->formatting_elements.begin(),
+                  treebuilder->formatting_elements.end(),
+                  node) != treebuilder->formatting_elements.end()) {
+      treebuilder->formatting_elements.remove(node);
+      continue; /* XXX: unspecified */
+    }
+
+    /* Step 4.13.5. */
+    if (std::find(treebuilder->formatting_elements.begin(),
+                  treebuilder->formatting_elements.end(),
+                  node) == treebuilder->formatting_elements.end()) {
+      /* XXX: remove from open_elements */
+      continue;
+    }
+
+    /* Step 4.13.6. */
+    struct tag_token *node_token = static_cast<struct tag_token *>(node->parser_token);
+    std::shared_ptr< DOM_Element> new_node =
+     treebuilder->create_element_for_token(node_token, INFRA_NAMESPACE_HTML, common_ancestor);
+
+    std::replace(treebuilder->formatting_elements.begin(),
+                 treebuilder->formatting_elements.end(),
+                 node, new_node);
+
+    std::replace(treebuilder->open_elements.begin(),
+                 treebuilder->open_elements.end(),
+                 node, new_node);
+
+
+    /* Step 4.13.7. */
+    if (last_node == furthest_block)
+      *bookmark_p = *std::next(std::find(treebuilder->formatting_elements.begin(),
+                                         treebuilder->formatting_elements.end(),
+                                         new_node));
+
+    /* Step 4.13.8. */
+    node->append_node(last_node);
+
+    /* Step 4.13.9. */
+    last_node = node;
+  }
+
+  *last_node_p = last_node;
+}
+
+
 static int
 adoption_agency_algorithm(TreeBuilder *treebuilder,
                           struct tag_token *tag)
 {
-  (void) treebuilder;
-  (void) tag;
+  /*
+   * Most repulsive piece of code I have ever written; this function.
+   */
 
+  /* Step 1. */
+  uint16_t subject = tag->local_name;
+
+  /* Step 2. */
+  if (treebuilder->current_node()->has_html_element_index(subject)
+   && (std::find(treebuilder->formatting_elements.begin(),
+                 treebuilder->formatting_elements.end(),
+                 treebuilder->current_node())) == treebuilder->formatting_elements.end()) {
+    treebuilder->open_elements.pop_back();
+    return 0;
+  }
+
+  /* Step 3. */
   int outer_counter = 0;
+  std::shared_ptr< DOM_Element> formatting_element = nullptr;
+  std::shared_ptr< DOM_Element> furthest_block = nullptr;
+  std::shared_ptr< DOM_Element> common_ancestor = nullptr;
+  std::shared_ptr< DOM_Element> last_node = nullptr;
+  std::shared_ptr< DOM_Element> bookmark = nullptr;
 
+  /* Step 4. */
   while (true)
   {
+    /* Step 4.1. */
     if (outer_counter >= 8)
       return 0;
 
+
+    /* Step 4.2. */
     outer_counter++;
 
-    std::shared_ptr< DOM_Element> formatting_element = nullptr;
-    /* XXX: assign */
 
-    /* XXX: not in stack? ... */
-    /* XXX: not in scope? ... */
+    /* Step 4.3. */
+    for (auto& elem : std::ranges::views::reverse(treebuilder->formatting_elements)) {
+      if (elem == treebuilder->FORMATTING_MARKER)
+        break;
 
+      if (elem->has_html_element_index(subject)) {
+        formatting_element = elem;
+        break;
+      }
+
+    }
+
+    if (formatting_element == nullptr)
+      return 1;
+
+    auto formatting_element_it = std::find(treebuilder->formatting_elements.begin(),
+                                           treebuilder->formatting_elements.end(),
+                                           formatting_element);
+
+
+    /* Step 4.4. */
+    if (std::find(treebuilder->open_elements.begin(),
+                  treebuilder->open_elements.end(),
+                  formatting_element) == treebuilder->open_elements.end()) {
+      treebuilder->error();
+      treebuilder->formatting_elements.remove(formatting_element);
+      return 0;
+    }
+
+    /* Step 4.5. */
+    if (! treebuilder->have_element_in_scope(formatting_element)) {
+      treebuilder->error();
+      return 0;
+    }
+
+    /* Step 4.6. */
     if (formatting_element != treebuilder->current_node())
       treebuilder->error();
 
-    std::shared_ptr< DOM_Element> furthest_block = nullptr;
-    /* XXX: assign */
+    /* Step 4.7. */
+    for (auto& elem : std::ranges::views::reverse(treebuilder->open_elements)) {
+      if (elem == formatting_element)
+        break;
 
-    /* XXX: no furthest_block? ... */
-
-    std::shared_ptr< DOM_Element> common_ancestor = nullptr;
-    /* XXX: assign */
-
-    /* XXX: bookmark */
-
-    /* XXX: node and lastNode */
-
-    int inner_loop = 0;
-
-    while (true)
-    {
-      inner_loop++;
-
-      /* ... */
+      if (treebuilder->is_special_element(elem))
+        furthest_block = elem;
     }
 
-    /* ... */
+    /* Step 4.8. */
+    if (furthest_block == nullptr) {
+      std::shared_ptr< DOM_Element> popped;
+
+      do {
+        popped = treebuilder->open_elements.back();
+        treebuilder->open_elements.pop_back();
+      } while (popped != formatting_element);
+
+      treebuilder->formatting_elements.remove(formatting_element);
+
+      return 0;
+    }
+
+    /* Step 4.9. */
+    common_ancestor = *std::prev(formatting_element_it);
+
+    /* Step 4.10. */
+    bookmark = *std::prev(formatting_element_it);
+
+    /* Step 4.11. */
+    std::shared_ptr< DOM_Element> node = furthest_block;
+    last_node = furthest_block;
+
+    /* Steps 4.12. - 4.13.9. */
+    aa_inner_loop_(treebuilder, formatting_element, furthest_block,
+                   common_ancestor, &bookmark, node, &last_node);
+
   }
+
+  /* Step 4.14. */
+  treebuilder->insert_element_at_location(treebuilder->appropriate_insertion_place(common_ancestor),
+                                          last_node);
+
+  /* Step 15. */
+  struct tag_token *formatting_element_tag = static_cast<struct tag_token *>(formatting_element->parser_token);
+
+  std::shared_ptr< DOM_Element> new_elem = treebuilder->create_element_for_token(
+   formatting_element_tag, INFRA_NAMESPACE_HTML, furthest_block);
+
+  /* Step 16. */
+  for (std::shared_ptr< DOM_Node> child : furthest_block->child_nodes)
+    new_elem->append_node(child);
+
+  /* Step 17. */
+  furthest_block->append_node(std::dynamic_pointer_cast<DOM_Node>(new_elem));
+
+  /* Step 18. */
+  treebuilder->formatting_elements.remove(formatting_element);
+  treebuilder->formatting_elements.insert(
+   std::find(treebuilder->formatting_elements.begin(),
+             treebuilder->formatting_elements.end(),
+             bookmark),
+   new_elem);
+
+  /* Step 19. */
+  treebuilder->open_elements.erase(std::find(
+   treebuilder->open_elements.begin(),
+   treebuilder->open_elements.end(),
+   formatting_element));
+
+  treebuilder->open_elements.insert(
+    std::next(std::find(treebuilder->open_elements.begin(),
+                        treebuilder->open_elements.end(),
+                        furthest_block)),
+    new_elem);
 
   return 0;
 }
-#endif
+
+
+#define RUN_ADOPTION_AGENCY_ALGORITHM(treebuilder_, tag_) \
+  { \
+    int aa_rc_ = adoption_agency_algorithm((treebuilder_), (tag_)); \
+    if (aa_rc_ != 0) \
+      goto any_other_end_tag; \
+  }
 
 
 static enum treebuilder_status
@@ -783,7 +989,7 @@ in_body_mode(TreeBuilder *treebuilder,
              union token_data *token_data,
              enum token_type token_type)
 {
-  LOGF("in body mode\n");
+  // LOGF("in body mode\n");
 
   /*
    * Even if not accessed, the variable is created here so that goto jumps
@@ -1070,12 +1276,24 @@ in_body_mode(TreeBuilder *treebuilder,
 
 
       case HTML_ELEMENT_A: {
-        /* XXX: long pain */
+        for (auto& elem : std::ranges::views::reverse(treebuilder->formatting_elements))
+        {
+          if (elem == treebuilder->FORMATTING_MARKER)
+            break;
+
+          if (elem->has_html_element_index(HTML_ELEMENT_A)) {
+            RUN_ADOPTION_AGENCY_ALGORITHM(treebuilder, tag);
+            treebuilder->formatting_elements.remove(elem);
+            // treebuilder->open_elements.remove(elem);
+            break;
+          }
+
+        }
 
         treebuilder->reconstruct_active_formatting_elements();
 
-        auto a = treebuilder->insert_html_element(tag);
-        treebuilder->push_to_active_formatting_elements(a);
+        auto a_el = treebuilder->insert_html_element(tag);
+        treebuilder->push_to_active_formatting_elements(a_el);
 
         return TREEBUILDER_STATUS_OK;
       }
@@ -1087,9 +1305,8 @@ in_body_mode(TreeBuilder *treebuilder,
       case HTML_ELEMENT_STRONG: case HTML_ELEMENT_TT:    case HTML_ELEMENT_U: {
         treebuilder->reconstruct_active_formatting_elements();
 
-        auto elem = treebuilder->insert_html_element(tag);
-
-        treebuilder->push_to_active_formatting_elements(elem);
+        auto el = treebuilder->insert_html_element(tag);
+        treebuilder->push_to_active_formatting_elements(el);
 
         return TREEBUILDER_STATUS_OK;
       }
@@ -1099,7 +1316,10 @@ in_body_mode(TreeBuilder *treebuilder,
         treebuilder->reconstruct_active_formatting_elements();
 
         if (treebuilder->have_element_in_scope(HTML_ELEMENT_NOBR)) {
-          /* XXX: adoption agency */
+          treebuilder->error();
+
+          RUN_ADOPTION_AGENCY_ALGORITHM(treebuilder, tag);
+
           treebuilder->reconstruct_active_formatting_elements();
         }
 
@@ -1116,7 +1336,7 @@ in_body_mode(TreeBuilder *treebuilder,
 
         treebuilder->insert_html_element(tag);
 
-        /* XXX: insert marker */
+        treebuilder->push_formatting_marker();
 
         treebuilder->flags.frameset_ok = false;
 
@@ -1228,9 +1448,9 @@ in_body_mode(TreeBuilder *treebuilder,
 
 
       case HTML_ELEMENT_NOSCRIPT: {
-        if (treebuilder->flags.scripting) {
+        if (treebuilder->flags.scripting)
           return treebuilder->generic_raw_text_parse(tag);
-        }
+
         return TREEBUILDER_STATUS_OK; /* XXX */
       }
 
@@ -1366,7 +1586,29 @@ in_body_mode(TreeBuilder *treebuilder,
           return TREEBUILDER_STATUS_IGNORE;
         }
 
-        /* XXX: in stack */
+        for (const auto& elem : std::ranges::views::reverse(treebuilder->open_elements)) {
+          if (! (elem->has_html_element_index(HTML_ELEMENT_DD)
+              || elem->has_html_element_index(HTML_ELEMENT_DT)
+              || elem->has_html_element_index(HTML_ELEMENT_LI)
+              || elem->has_html_element_index(HTML_ELEMENT_OPTGROUP)
+              || elem->has_html_element_index(HTML_ELEMENT_OPTION)
+              || elem->has_html_element_index(HTML_ELEMENT_P)
+              || elem->has_html_element_index(HTML_ELEMENT_RB)
+              || elem->has_html_element_index(HTML_ELEMENT_RP)
+              || elem->has_html_element_index(HTML_ELEMENT_RT)
+              || elem->has_html_element_index(HTML_ELEMENT_RTC)
+              || elem->has_html_element_index(HTML_ELEMENT_TBODY)
+              || elem->has_html_element_index(HTML_ELEMENT_TD)
+              || elem->has_html_element_index(HTML_ELEMENT_TFOOT)
+              || elem->has_html_element_index(HTML_ELEMENT_TH)
+              || elem->has_html_element_index(HTML_ELEMENT_THEAD)
+              || elem->has_html_element_index(HTML_ELEMENT_TR)
+              || elem->has_html_element_index(HTML_ELEMENT_BODY)
+              || elem->has_html_element_index(HTML_ELEMENT_HTML))) {
+            treebuilder->error();
+            break;
+          }
+        }
 
         treebuilder->mode = AFTER_BODY_MODE;
 
@@ -1379,7 +1621,30 @@ in_body_mode(TreeBuilder *treebuilder,
           treebuilder->error();
           return TREEBUILDER_STATUS_IGNORE;
         }
-        /* XXX: in stack */
+
+        for (const auto& elem : std::ranges::views::reverse(treebuilder->open_elements)) {
+          if (! (elem->has_html_element_index(HTML_ELEMENT_DD)
+              || elem->has_html_element_index(HTML_ELEMENT_DT)
+              || elem->has_html_element_index(HTML_ELEMENT_LI)
+              || elem->has_html_element_index(HTML_ELEMENT_OPTGROUP)
+              || elem->has_html_element_index(HTML_ELEMENT_OPTION)
+              || elem->has_html_element_index(HTML_ELEMENT_P)
+              || elem->has_html_element_index(HTML_ELEMENT_RB)
+              || elem->has_html_element_index(HTML_ELEMENT_RP)
+              || elem->has_html_element_index(HTML_ELEMENT_RT)
+              || elem->has_html_element_index(HTML_ELEMENT_RTC)
+              || elem->has_html_element_index(HTML_ELEMENT_TBODY)
+              || elem->has_html_element_index(HTML_ELEMENT_TD)
+              || elem->has_html_element_index(HTML_ELEMENT_TFOOT)
+              || elem->has_html_element_index(HTML_ELEMENT_TH)
+              || elem->has_html_element_index(HTML_ELEMENT_THEAD)
+              || elem->has_html_element_index(HTML_ELEMENT_TR)
+              || elem->has_html_element_index(HTML_ELEMENT_BODY)
+              || elem->has_html_element_index(HTML_ELEMENT_HTML))) {
+            treebuilder->error();
+            break;
+          }
+        }
 
         treebuilder->mode = AFTER_BODY_MODE;
 
@@ -1529,7 +1794,7 @@ in_body_mode(TreeBuilder *treebuilder,
       case HTML_ELEMENT_I:     case HTML_ELEMENT_NOBR:   case HTML_ELEMENT_S:
       case HTML_ELEMENT_SMALL: case HTML_ELEMENT_STRIKE: case HTML_ELEMENT_STRONG:
       case HTML_ELEMENT_TT:    case HTML_ELEMENT_U: {
-        /* XXX: run adoption agency algorithm */
+        RUN_ADOPTION_AGENCY_ALGORITHM(treebuilder, tag);
         return TREEBUILDER_STATUS_OK;
       }
 
@@ -1552,7 +1817,7 @@ in_body_mode(TreeBuilder *treebuilder,
           treebuilder->open_elements.pop_back();
         } while (! (popped->has_html_element_index(tag->local_name)));
 
-        /* XXX: clear list of active formatting elements to last marker */
+        treebuilder->clear_active_formatting_elements_to_marker();
 
         return TREEBUILDER_STATUS_OK;
       }
@@ -1565,6 +1830,7 @@ in_body_mode(TreeBuilder *treebuilder,
       }
 
 
+any_other_end_tag:
       default: {
 
         for (const auto& node : std::ranges::views::reverse(treebuilder->open_elements))
@@ -1756,9 +2022,13 @@ in_table_mode(TreeBuilder *treebuilder,
     {
       case HTML_ELEMENT_CAPTION: {
         clear_stack_to_table_context(treebuilder);
-        /* XXX: insert marker */
+
+        treebuilder->push_formatting_marker();
+
         treebuilder->insert_html_element(tag);
+
         treebuilder->mode = IN_CAPTION_MODE;
+
         return TREEBUILDER_STATUS_OK;
       }
 
@@ -1961,7 +2231,7 @@ in_caption_mode(TreeBuilder *treebuilder,
           treebuilder->open_elements.pop_back();
         } while (! popped->has_html_element_index(HTML_ELEMENT_CAPTION));
 
-        /* XXX: clear to last marker */
+        treebuilder->clear_active_formatting_elements_to_marker();
 
         treebuilder->mode = IN_TABLE_MODE;
         return TREEBUILDER_STATUS_OK;
@@ -2039,7 +2309,7 @@ in_caption_mode(TreeBuilder *treebuilder,
           treebuilder->open_elements.pop_back();
         } while (! popped->has_html_element_index(HTML_ELEMENT_CAPTION));
 
-        /* XXX: clear to last marker */
+        treebuilder->clear_active_formatting_elements_to_marker();
 
         treebuilder->mode = IN_TABLE_MODE;
         return TREEBUILDER_STATUS_REPROCESS;
@@ -2353,7 +2623,8 @@ in_row_mode(TreeBuilder *treebuilder,
 
         treebuilder->mode = IN_CELL_MODE;
 
-        /* XXX: insert marker */
+        treebuilder->push_formatting_marker();
+
         return TREEBUILDER_STATUS_OK;
       }
 
@@ -2452,7 +2723,7 @@ close_cell(TreeBuilder *treebuilder)
   } while (! (popped->has_html_element_index(HTML_ELEMENT_TD)
            || popped->has_html_element_index(HTML_ELEMENT_TH)));
 
-  /* XXX: clear to last marker */
+  treebuilder->clear_active_formatting_elements_to_marker();
 
   treebuilder->mode = IN_ROW_MODE;
 }
@@ -2489,7 +2760,7 @@ in_cell_mode(TreeBuilder *treebuilder,
           treebuilder->open_elements.pop_back();
         } while (! popped->has_html_element_index(tag->local_name));
 
-        /* XXX: clear list of active formatting elements */
+        treebuilder->clear_active_formatting_elements_to_marker();
 
         treebuilder->mode = IN_ROW_MODE;
 
@@ -2951,7 +3222,7 @@ in_template_mode(TreeBuilder *treebuilder,
       treebuilder->open_elements.pop_back();
     } while (! popped->has_html_element_index(HTML_ELEMENT_TEMPLATE));
 
-    // XXX: clear to marker
+    treebuilder->clear_active_formatting_elements_to_marker();
 
     treebuilder->template_modes.pop_back();
 
