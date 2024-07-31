@@ -9,15 +9,18 @@
 #include <memory>
 
 
-class DOM_Event;
+namespace DOM {
 
 
-class DOM_EventTarget : public std::enable_shared_from_this< DOM_EventTarget> {
+class EventTarget : public std::enable_shared_from_this< EventTarget> {
   protected:
-    DOM_EventTarget(void) { }
+    EventTarget(void) = default;
   public:
-    virtual ~DOM_EventTarget() { }
+    virtual ~EventTarget() = default;
 };
+
+
+} /* namespace DOM */
 
 
 #endif /* !defined(_queequeg_dom_event_target_hh_) */

@@ -1,13 +1,15 @@
 #ifndef _queequeg_dom_node_hh_
 #define _queequeg_dom_node_hh_
 
+#include <cstddef>
 #include <vector>
 #include <memory>
 
 #include "dom/events/event_target.hh"
 
+#include "qglib/iterator.hh"
 
-class DOM_Document;
+
 
 
 enum dom_node_type {
@@ -26,50 +28,101 @@ enum dom_node_type {
 };
 
 
-class DOM_Node : public DOM_EventTarget {
+namespace DOM {
+
+
+class Document;
+class TreeNodeDFSIterator;
+
+
+class Node : public DOM::EventTarget {
   protected:
-    DOM_Node(std::shared_ptr<DOM_Document> node_document,
-             enum dom_node_type node_type);
+    Node(std::shared_ptr< Document> node_document,
+         enum dom_node_type node_type);
   public:
-    virtual ~DOM_Node() { }
+    virtual ~Node() = default;
 
   public:
-    std::weak_ptr< DOM_Document> node_document;
+    std::weak_ptr< Document> node_document;
     enum dom_node_type node_type;
 
-    std::weak_ptr< DOM_Node> parent_node;
-    std::vector< std::shared_ptr< DOM_Node>> child_nodes;
+    std::weak_ptr< Node> parent_node;
+    std::vector< std::shared_ptr< Node>> child_nodes;
+
+    inline bool is_element(void) const;
+    inline bool is_text(void) const;
+    inline bool is_document(void) const;
 
 
-    std::shared_ptr< DOM_Node> get_previous_sibling(void);
+    std::shared_ptr< Node> get_previous_sibling(void);
 
-    void insert_node(std::shared_ptr< DOM_Node> node,
-                     std::shared_ptr< DOM_Node> child,
+    void insert_node(std::shared_ptr< Node> node,
+                     std::shared_ptr< Node> child,
                      bool supp_observers = false);
 
-    void append_node(std::shared_ptr< DOM_Node> node, bool supp_observers = false);
-
-
-  public:
-    inline bool
-    is_element(void) const
-    {
-      return (this->node_type == DOM_NODETYPE_ELEMENT);
-    }
-
-    inline bool
-    is_text(void) const
-    {
-      return (this->node_type == DOM_NODETYPE_TEXT);
-    }
-
-    inline bool
-    is_document(void) const
-    {
-      return (this->node_type == DOM_NODETYPE_DOCUMENT);
-    }
-
+    void append_node(std::shared_ptr< Node> node, bool supp_observers = false);
 };
+
+
+inline bool
+Node::is_element(void) const
+{
+  return (this->node_type == DOM_NODETYPE_ELEMENT);
+}
+
+inline bool
+Node::is_text(void) const
+{
+  return (this->node_type == DOM_NODETYPE_TEXT);
+}
+
+inline bool
+Node::is_document(void) const
+{
+  return (this->node_type == DOM_NODETYPE_DOCUMENT);
+}
+
+
+
+struct TreeNodeDFSIterator {
+  using difference_type = std::ptrdiff_t;
+  using value_type = std::shared_ptr< DOM::Node>;
+
+
+  TreeNodeDFSIterator(void) = default;
+  TreeNodeDFSIterator(const TreeNodeDFSIterator& it);
+
+  ~TreeNodeDFSIterator() = default;
+
+
+  value_type operator*() const;
+
+  bool operator==(const TreeNodeDFSIterator& other_it) const;
+
+  TreeNodeDFSIterator& operator++();
+  TreeNodeDFSIterator operator++(int);
+
+
+  static TreeNodeDFSIterator make_begin(std::shared_ptr< DOM::Node> root_node);
+  static TreeNodeDFSIterator make_end(std::shared_ptr< DOM::Node> root_node);
+
+
+  private:
+    void fall_through_branch_(void);
+
+    using ChainLink_ = struct {
+      std::vector< std::shared_ptr< DOM::Node>>::iterator cur;
+      std::vector< std::shared_ptr< DOM::Node>>::iterator end;
+    };
+
+    std::vector< std::shared_ptr< DOM::Node>> root_vec_;
+    std::vector< ChainLink_> chain_ = { };
+};
+
+static_assert(std::forward_iterator<TreeNodeDFSIterator>);
+
+
+} /* namespace DOM */
 
 
 #endif /* !defined(_queequeg_dom_node_hh_) */

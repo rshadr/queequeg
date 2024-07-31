@@ -6,9 +6,6 @@
 #include "dom/html/html_element.hh"
 
 
-class DOM_Document;
-
-
 enum html_script_type {
   HTML_SCRIPT_TYPE_CLASSIC,
   HTML_SCRIPT_TYPE_MODULE,
@@ -16,17 +13,23 @@ enum html_script_type {
 };
 
 
-class DOM_HTMLScriptElement : public DOM_HTMLElement {
+namespace DOM {
+
+
+class Document;
+
+
+class HTMLScriptElement : public DOM::HTMLElement {
   public:
-    DOM_HTMLScriptElement(std::shared_ptr< DOM_Document> document,
+    HTMLScriptElement(std::shared_ptr< DOM::Document> document,
                           enum InfraNamespace name_space,
                           uint16_t local_name)
-    : DOM_HTMLElement(document, name_space, local_name) { }
-    virtual ~DOM_HTMLScriptElement() { }
+    : DOM::HTMLElement(document, name_space, local_name) { }
+    virtual ~HTMLScriptElement() = default;
 
   public:
-    std::weak_ptr< DOM_Document> parser_document;
-    std::weak_ptr< DOM_Document> prep_time_document;
+    std::weak_ptr< DOM::Document> parser_document;
+    std::weak_ptr< DOM::Document> prep_time_document;
 
     enum html_script_type script_type;
 
@@ -37,8 +40,11 @@ class DOM_HTMLScriptElement : public DOM_HTMLElement {
       bool already_started = false;
       bool delaying_load_event = false;
     } script_flags;
+
 };
 
+
+} /* namespace DOM */
 
 
 #endif /* !defined(_queequeg_dom_html_script_element_hh_) */

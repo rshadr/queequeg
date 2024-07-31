@@ -1227,7 +1227,7 @@ markup_decl_open_state(Tokenizer *tokenizer, [[maybe_unused]] char32_t c)
   }
 
   if (tokenizer->match("[CDATA[")) {
-    const std::shared_ptr< DOM_Element> node = tokenizer->treebuilder->adjusted_current_node();
+    const std::shared_ptr< DOM::Element> node = tokenizer->treebuilder->adjusted_current_node();
 
     if (node != nullptr && node->name_space != INFRA_NAMESPACE_HTML) {
       tokenizer->state = CDATA_SECTION_STATE;

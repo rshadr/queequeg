@@ -24,6 +24,7 @@ SRCS =\
 	dom/core/document\
 	dom/core/element\
 	dom/core/node\
+	dom/core/tree_node_dfs_iterator\
 	\
 	qglib/unicode\
 

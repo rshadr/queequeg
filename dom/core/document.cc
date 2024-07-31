@@ -12,8 +12,11 @@
 #include "html/elements.hh"
 
 
-DOM_Document::DOM_Document(enum dom_document_format format)
-: DOM_Node(nullptr, DOM_NODETYPE_DOCUMENT)
+namespace DOM {
+
+
+Document::Document(enum dom_document_format format)
+: DOM::Node(nullptr, DOM_NODETYPE_DOCUMENT)
 {
   // this->node_document = std::static_pointer_cast<DOM_Document>(this->shared_from_this());
   /*
@@ -27,18 +30,13 @@ DOM_Document::DOM_Document(enum dom_document_format format)
 }
 
 
-DOM_Document::~DOM_Document()
-{
-}
-
-
 [[nodiscard]]
-std::shared_ptr< DOM_Element>
-DOM_Document::create_element(uint16_t local_name,
-                             enum InfraNamespace name_space,
-                             void *prefix,
-                             void *is,
-                             bool sync_custom_elements)
+std::shared_ptr< DOM::Element>
+DOM::Document::create_element(uint16_t local_name,
+                              enum InfraNamespace name_space,
+                              void *prefix,
+                              void *is,
+                              bool sync_custom_elements)
 {
   (void) prefix;
   (void) is;
@@ -46,16 +44,16 @@ DOM_Document::create_element(uint16_t local_name,
 
   assert( name_space == INFRA_NAMESPACE_HTML && "only HTML is supported" );
 
-  std::shared_ptr< DOM_Element> result = nullptr;
+  std::shared_ptr< DOM::Element> result = nullptr;
 
   /* XXX: custom definition ... */
 
   {
-    std::shared_ptr< DOM_Document> document =
-     std::dynamic_pointer_cast<DOM_Document>(this->shared_from_this());
+    std::shared_ptr< DOM::Document> document =
+     std::dynamic_pointer_cast<DOM::Document>(this->shared_from_this());
 
     /* XXX: element interface */
-    result = std::dynamic_pointer_cast<DOM_Element>(std::shared_ptr<DOM_HTMLElement>(
+    result = std::dynamic_pointer_cast<DOM::Element>(std::shared_ptr<DOM::HTMLElement>(
               HTML::new_element_with_index(document, local_name)));
 
     result->custom_state = DOM_CESTATE_UNCUSTOMIZED;
@@ -67,4 +65,7 @@ DOM_Document::create_element(uint16_t local_name,
   return result;
 
 }
+
+
+} /* namespace DOM */
 

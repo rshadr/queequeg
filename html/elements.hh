@@ -186,20 +186,29 @@ enum html_element_index : uint16_t {
 };
 
 
-class DOM_Document;
-class DOM_HTMLElement;
+namespace DOM {
+
+
+class Document;
+class HTMLElement;
+
+
+};
+
 
 namespace HTML {
 
-  /*
-   * The main purpose of this table is to translate tag names to element indices during
-   * parsing.
-   * XXX: 2-way map for later
-   */
-  DOM_HTMLElement *new_element_with_index(std::shared_ptr< DOM_Document> document,
-                                          uint16_t local_name);
 
-  extern const std::unordered_map< std::string, uint16_t> k_local_names_table;
+/*
+ * The main purpose of this table is to translate tag names to element indices during
+ * parsing.
+ * XXX: 2-way map for later
+ */
+DOM::HTMLElement *new_element_with_index(std::shared_ptr< DOM::Document> document,
+                                         uint16_t local_name);
+
+extern const std::unordered_map< std::string, uint16_t> k_local_names_table;
+
 
 } /* namespace HTML */
 

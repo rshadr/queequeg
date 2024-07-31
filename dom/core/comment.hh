@@ -9,16 +9,22 @@
 #include "dom/core/character_data.hh"
 
 
-class DOM_Document;
+namespace DOM {
 
 
-class DOM_Comment : public DOM_CharacterData {
+class Document;
+
+
+class Comment : public DOM::CharacterData {
   public:
-    DOM_Comment(std::shared_ptr< DOM_Document> node_document,
-                std::string data = "")
-  : DOM_CharacterData(node_document, DOM_NODETYPE_COMMENT, data) { }
-    virtual ~DOM_Comment() { }
+    Comment(std::shared_ptr< DOM::Document> node_document,
+            std::string data = "")
+  : DOM::CharacterData(node_document, DOM_NODETYPE_COMMENT, data) { }
+    virtual ~Comment() = default;
 };
+
+
+} /* namespace DOM */
 
 
 #endif /* !defined(_queequeg_dom_comment_hh_) */

@@ -115,8 +115,8 @@ union token_data {
  * we don't even care anymore.
  */
 struct InsertionLocation {
-  std::shared_ptr< DOM_Node> parent;
-  std::shared_ptr< DOM_Node> child;
+  std::shared_ptr< DOM::Node> parent;
+  std::shared_ptr< DOM::Node> child;
 };
 
 
@@ -374,14 +374,14 @@ enum treebuilder_status {
 
 
 template< typename T>
-concept ScopeTargetable = std::same_as< T, std::shared_ptr< DOM_Element>>
+concept ScopeTargetable = std::same_as< T, std::shared_ptr< DOM::Element>>
                        || std::same_as< T, std::initializer_list< enum html_element_index>>
                        || std::same_as< T, enum html_element_index>;
 
 
 class TreeBuilder final {
   public:
-      TreeBuilder(std::shared_ptr< DOM_Document> document);
+      TreeBuilder(std::shared_ptr< DOM::Document> document);
     ~TreeBuilder();
 
   public:
@@ -393,29 +393,20 @@ class TreeBuilder final {
 
     Tokenizer *tokenizer = nullptr;
 
-    std::shared_ptr< DOM_Document> document = nullptr;
-    std::shared_ptr< DOM_Element>  context = nullptr;
+    std::shared_ptr< DOM::Document> document = nullptr;
+    std::shared_ptr< DOM::Element>  context = nullptr;
 
-    std::shared_ptr< DOM_HTMLHeadElement> head = nullptr;
-    std::shared_ptr< DOM_Element>         form = nullptr;
+    std::shared_ptr< DOM::HTMLHeadElement> head = nullptr;
+    std::shared_ptr< DOM::Element>         form = nullptr;
 
-    std::vector< std::shared_ptr< DOM_Element>> open_elements = { };
-    std::list< std::shared_ptr< DOM_Element>> formatting_elements = { };
-
-#if 0
-    /*
-     * hacky way to get an unique address to signify markers
-     */
-    std::shared_ptr< DOM_Element> FORMATTING_MARKER =
-     std::shared_ptr< DOM_Element>((DOM_Element *)(0xDEADBEEF),
-      [](DOM_Element *){});
-#endif
+    std::vector< std::shared_ptr< DOM::Element>> open_elements = { };
+    std::list< std::shared_ptr< DOM::Element>> formatting_elements = { };
 
     /*
-     * dummy element to get an unique address
+     * dummy element to get an unique smart pointer
      */
-    std::shared_ptr< DOM_Element> FORMATTING_MARKER =
-     std::make_shared<DOM_Element>(nullptr, INFRA_NAMESPACE_NULL, 0);
+    std::shared_ptr< DOM::Element> FORMATTING_MARKER =
+     std::make_shared<DOM::Element>(nullptr, INFRA_NAMESPACE_NULL, 0);
 
     std::vector< char32_t> pending_table_characters = { };
 
@@ -456,14 +447,14 @@ class TreeBuilder final {
     void reset_insertion_mode_appropriately(void);
 
 
-    inline std::shared_ptr< DOM_Element>
+    inline std::shared_ptr< DOM::Element>
     current_node(void) const
     {
       return this->open_elements.back();
     }
 
 
-    inline std::shared_ptr< DOM_Element>
+    inline std::shared_ptr< DOM::Element>
     adjusted_current_node(void) const
     {
       if (this->context != nullptr)
@@ -473,17 +464,17 @@ class TreeBuilder final {
     }
 
 
-    std::shared_ptr< DOM_Element> find_foreign_element_in_stack(enum InfraNamespace name_space,
+    std::shared_ptr< DOM::Element> find_foreign_element_in_stack(enum InfraNamespace name_space,
                                                                 uint16_t local_name);
 
-    inline std::shared_ptr< DOM_Element>
+    inline std::shared_ptr< DOM::Element>
     find_html_element_in_stack(uint16_t local_name)
     {
       return this->find_foreign_element_in_stack(INFRA_NAMESPACE_HTML, local_name);
     }
 
-    bool is_special_element(std::shared_ptr< DOM_Element> element) const;
-    bool is_formatting_element(std::shared_ptr< DOM_Element> element) const;
+    bool is_special_element(std::shared_ptr< DOM::Element> element) const;
+    bool is_formatting_element(std::shared_ptr< DOM::Element> element) const;
 
 
   /*
@@ -499,18 +490,18 @@ class TreeBuilder final {
    * XXX: remove useless overloads (html_element_index antecedents)
    */
   private:
-    bool scope_node_equals_(std::shared_ptr< DOM_Element> node,
-                            std::shared_ptr< DOM_Element> target) const;
-    bool scope_node_equals_(std::shared_ptr< DOM_Element> node,
+    bool scope_node_equals_(std::shared_ptr< DOM::Element> node,
+                            std::shared_ptr< DOM::Element> target) const;
+    bool scope_node_equals_(std::shared_ptr< DOM::Element> node,
                             std::initializer_list< enum html_element_index> html_local_names) const;
-    bool scope_node_equals_(std::shared_ptr< DOM_Element> node,
+    bool scope_node_equals_(std::shared_ptr< DOM::Element> node,
                             enum html_element_index html_local_name) const
     {
       return this->scope_node_equals_(node, {html_local_name} );
     }
 
     bool scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
-                               std::shared_ptr< DOM_Element> elem) const;
+                               std::shared_ptr< DOM::Element> elem) const;
     bool scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
                                std::initializer_list< enum html_element_index> html_local_names) const;
 
@@ -576,33 +567,33 @@ class TreeBuilder final {
 
   public:
     void push_formatting_marker(void);
-    bool same_parsed_elements(std::shared_ptr< DOM_Element> lhs,
-                              std::shared_ptr< DOM_Element> rhs) const;
-    void push_to_active_formatting_elements(std::shared_ptr< DOM_Element> element);
+    bool same_parsed_elements(std::shared_ptr< DOM::Element> lhs,
+                              std::shared_ptr< DOM::Element> rhs) const;
+    void push_to_active_formatting_elements(std::shared_ptr< DOM::Element> element);
     void reconstruct_active_formatting_elements(void);
     void clear_active_formatting_elements_to_marker(void);
 
     void acknowledge_self_closing_flag(struct tag_token *tag) const;
 
 
-    InsertionLocation appropriate_insertion_place(std::shared_ptr< DOM_Element> override_target = nullptr);
+    InsertionLocation appropriate_insertion_place(std::shared_ptr< DOM::Element> override_target = nullptr);
 
-    [[nodiscard]] std::shared_ptr< DOM_Element>
+    [[nodiscard]] std::shared_ptr< DOM::Element>
     create_element_for_token(struct tag_token const *tag,
                              enum InfraNamespace name_space,
-                             std::shared_ptr< DOM_Node> intended_parent);
+                             std::shared_ptr< DOM::Node> intended_parent);
 
-    static std::shared_ptr< DOM_Node> node_before(InsertionLocation location);
+    static std::shared_ptr< DOM::Node> node_before(InsertionLocation location);
 
     void insert_element_at_location(InsertionLocation location,
-                                    std::shared_ptr< DOM_Element> element) const;
+                                    std::shared_ptr< DOM::Element> element) const;
 
-    void insert_element_at_adjusted_insertion_location(std::shared_ptr< DOM_Element>);
+    void insert_element_at_adjusted_insertion_location(std::shared_ptr< DOM::Element>);
 
-    std::shared_ptr< DOM_Element> insert_foreign_element(struct tag_token const *tag,
+    std::shared_ptr< DOM::Element> insert_foreign_element(struct tag_token const *tag,
      enum InfraNamespace name_space, bool only_add_to_element_stack);
 
-    std::shared_ptr< DOM_Element> insert_html_element(struct tag_token const *tag);
+    std::shared_ptr< DOM::Element> insert_html_element(struct tag_token const *tag);
 
     void insert_characters(std::vector< char32_t> const *vch);
     void insert_character(char32_t ch);

@@ -8,24 +8,30 @@
 #include "dom/core/node.hh"
 
 
-class DOM_Document;
+namespace DOM {
 
 
-class DOM_CharacterData : public DOM_Node {
+class Document;
+
+
+class CharacterData : public DOM::Node {
   protected:
-    DOM_CharacterData(std::shared_ptr< DOM_Document> node_document,
-                      enum dom_node_type node_type,
-                      std::string data = "")
-  : DOM_Node(node_document, node_type)
+    CharacterData(std::shared_ptr< DOM::Document> node_document,
+                  enum dom_node_type node_type,
+                  std::string data = "")
+  : DOM::Node(node_document, node_type)
   {
     this->data = data;
   }
   public:
-    virtual ~DOM_CharacterData() { };
+    virtual ~CharacterData() = default;
 
   public:
     std::string data;
 };
+
+
+} /* namespace DOM */
 
 
 #endif /* !defined(_queequeg_dom_character_data_hh_) */

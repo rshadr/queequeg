@@ -73,7 +73,7 @@ initial_mode(TreeBuilder *treebuilder,
 
   if (token_type == TOKEN_COMMENT) {
     treebuilder->insert_comment(&token_data->comment,
-     InsertionLocation{std::dynamic_pointer_cast<DOM_Node>(treebuilder->document), nullptr});
+     InsertionLocation{std::dynamic_pointer_cast<DOM::Node>(treebuilder->document), nullptr});
 
     return TREEBUILDER_STATUS_OK;
   }
@@ -88,7 +88,7 @@ initial_mode(TreeBuilder *treebuilder,
       && (token->system_id.compare("about:legacy-compat"))) != 0)
       treebuilder->error();
 
-    std::shared_ptr< DOM_DocumentType> doctype = std::make_shared<DOM_DocumentType>(treebuilder->document);
+    std::shared_ptr< DOM::DocumentType> doctype = std::make_shared<DOM::DocumentType>(treebuilder->document);
 
     doctype->name = token->name;
 
@@ -134,7 +134,7 @@ before_html_mode(TreeBuilder *treebuilder,
 
   if (token_type == TOKEN_COMMENT) {
     treebuilder->insert_comment(&token_data->comment,
-     InsertionLocation{std::dynamic_pointer_cast<DOM_Node>(treebuilder->document), nullptr});
+     InsertionLocation{std::dynamic_pointer_cast<DOM::Node>(treebuilder->document), nullptr});
 
     return TREEBUILDER_STATUS_OK;
   }
@@ -151,13 +151,13 @@ before_html_mode(TreeBuilder *treebuilder,
     switch (tag->local_name)
     {
       case HTML_ELEMENT_HTML: {
-        std::shared_ptr< DOM_HTMLHtmlElement> html =
-         std::make_shared< DOM_HTMLHtmlElement>(treebuilder->document,
+        std::shared_ptr< DOM::HTMLHtmlElement> html_el =
+         std::make_shared< DOM::HTMLHtmlElement>(treebuilder->document,
           INFRA_NAMESPACE_HTML, HTML_ELEMENT_HTML);
 
-        treebuilder->document->append_node(html);
+        treebuilder->document->append_node(html_el);
 
-        treebuilder->open_elements.push_back(html);
+        treebuilder->open_elements.push_back(html_el);
 
         treebuilder->mode = BEFORE_HEAD_MODE;
         return TREEBUILDER_STATUS_OK;
@@ -191,8 +191,8 @@ before_html_mode(TreeBuilder *treebuilder,
 
 
   anything_else: {
-    std::shared_ptr< DOM_HTMLHtmlElement> html =
-     std::make_shared< DOM_HTMLHtmlElement>(treebuilder->document,
+    std::shared_ptr< DOM::HTMLHtmlElement> html =
+     std::make_shared< DOM::HTMLHtmlElement>(treebuilder->document,
       INFRA_NAMESPACE_HTML, HTML_ELEMENT_HTML);
 
     treebuilder->document->append_node(html);
@@ -242,8 +242,8 @@ before_head_mode(TreeBuilder *treebuilder,
 
 
       case HTML_ELEMENT_HEAD: {
-        std::shared_ptr< DOM_HTMLHeadElement> head =
-         std::dynamic_pointer_cast<DOM_HTMLHeadElement>(treebuilder->insert_html_element(tag));
+        std::shared_ptr< DOM::HTMLHeadElement> head =
+         std::dynamic_pointer_cast<DOM::HTMLHeadElement>(treebuilder->insert_html_element(tag));
 
         treebuilder->head = head;
 
@@ -271,8 +271,8 @@ before_head_mode(TreeBuilder *treebuilder,
       .ack_self_closing_flag_ = false,
     };
 
-    std::shared_ptr< DOM_HTMLHeadElement> head =
-      std::dynamic_pointer_cast<DOM_HTMLHeadElement>(treebuilder->insert_html_element(&dummy_token));
+    std::shared_ptr< DOM::HTMLHeadElement> head =
+      std::dynamic_pointer_cast<DOM::HTMLHeadElement>(treebuilder->insert_html_element(&dummy_token));
 
     treebuilder->head = head;
 
@@ -369,7 +369,7 @@ in_head_mode(TreeBuilder *treebuilder,
       case HTML_ELEMENT_SCRIPT: {
         InsertionLocation ins_location = treebuilder->appropriate_insertion_place();
 
-        std::shared_ptr< DOM_HTMLScriptElement> script_el = std::dynamic_pointer_cast<DOM_HTMLScriptElement>(
+        std::shared_ptr< DOM::HTMLScriptElement> script_el = std::dynamic_pointer_cast<DOM::HTMLScriptElement>(
          treebuilder->create_element_for_token(tag,
          INFRA_NAMESPACE_HTML, ins_location.parent));
 
@@ -386,9 +386,9 @@ in_head_mode(TreeBuilder *treebuilder,
         LOGF("script_el = %p\n", reinterpret_cast<void *>(script_el.get()));
 
         treebuilder->insert_element_at_location(ins_location,
-         std::dynamic_pointer_cast<DOM_Element>(script_el));
+         std::dynamic_pointer_cast<DOM::Element>(script_el));
 
-        treebuilder->open_elements.push_back(std::dynamic_pointer_cast<DOM_Element>(script_el));
+        treebuilder->open_elements.push_back(std::dynamic_pointer_cast<DOM::Element>(script_el));
 
         treebuilder->tokenizer->state = SCRIPT_STATE;
         treebuilder->original_mode = treebuilder->mode;
@@ -450,7 +450,7 @@ in_head_mode(TreeBuilder *treebuilder,
         if (! treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_TEMPLATE))
           treebuilder->error();
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -717,7 +717,7 @@ close_p_element(TreeBuilder *treebuilder)
   if (! treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_P))
     treebuilder->error();
 
-  std::shared_ptr< DOM_Element> popped;
+  std::shared_ptr< DOM::Element> popped;
 
   do {
     popped = treebuilder->open_elements.back();
@@ -729,14 +729,14 @@ close_p_element(TreeBuilder *treebuilder)
 
 static void
 aa_inner_loop_(TreeBuilder *treebuilder,
-               std::shared_ptr< DOM_Element> formatting_element,
-               std::shared_ptr< DOM_Element> furthest_block,
-               std::shared_ptr< DOM_Element> common_ancestor,
-               std::shared_ptr< DOM_Element> *bookmark_p,
-               std::shared_ptr< DOM_Element> node,
-               std::shared_ptr< DOM_Element> *last_node_p)
+               std::shared_ptr< DOM::Element> formatting_element,
+               std::shared_ptr< DOM::Element> furthest_block,
+               std::shared_ptr< DOM::Element> common_ancestor,
+               std::shared_ptr< DOM::Element> *bookmark_p,
+               std::shared_ptr< DOM::Element> node,
+               std::shared_ptr< DOM::Element> *last_node_p)
 {
-  std::shared_ptr< DOM_Element> last_node = *last_node_p;
+  std::shared_ptr< DOM::Element> last_node = *last_node_p;
 
   /* Step 4.12. */
   int loop_counter = 0;
@@ -788,7 +788,7 @@ aa_inner_loop_(TreeBuilder *treebuilder,
 
     /* Step 4.13.6. */
     struct tag_token *node_token = static_cast<struct tag_token *>(node->parser_token);
-    std::shared_ptr< DOM_Element> new_node =
+    std::shared_ptr< DOM::Element> new_node =
      treebuilder->create_element_for_token(node_token, INFRA_NAMESPACE_HTML, common_ancestor);
 
     std::replace(treebuilder->formatting_elements.begin(),
@@ -839,11 +839,11 @@ adoption_agency_algorithm(TreeBuilder *treebuilder,
 
   /* Step 3. */
   int outer_counter = 0;
-  std::shared_ptr< DOM_Element> formatting_element = nullptr;
-  std::shared_ptr< DOM_Element> furthest_block = nullptr;
-  std::shared_ptr< DOM_Element> common_ancestor = nullptr;
-  std::shared_ptr< DOM_Element> last_node = nullptr;
-  std::shared_ptr< DOM_Element> bookmark = nullptr;
+  std::shared_ptr< DOM::Element> formatting_element = nullptr;
+  std::shared_ptr< DOM::Element> furthest_block = nullptr;
+  std::shared_ptr< DOM::Element> common_ancestor = nullptr;
+  std::shared_ptr< DOM::Element> last_node = nullptr;
+  std::shared_ptr< DOM::Element> bookmark = nullptr;
 
   /* Step 4. */
   while (true)
@@ -907,7 +907,7 @@ adoption_agency_algorithm(TreeBuilder *treebuilder,
 
     /* Step 4.8. */
     if (furthest_block == nullptr) {
-      std::shared_ptr< DOM_Element> popped;
+      std::shared_ptr< DOM::Element> popped;
 
       do {
         popped = treebuilder->open_elements.back();
@@ -926,7 +926,7 @@ adoption_agency_algorithm(TreeBuilder *treebuilder,
     bookmark = *std::prev(formatting_element_it);
 
     /* Step 4.11. */
-    std::shared_ptr< DOM_Element> node = furthest_block;
+    std::shared_ptr< DOM::Element> node = furthest_block;
     last_node = furthest_block;
 
     /* Steps 4.12. - 4.13.9. */
@@ -942,15 +942,15 @@ adoption_agency_algorithm(TreeBuilder *treebuilder,
   /* Step 15. */
   struct tag_token *formatting_element_tag = static_cast<struct tag_token *>(formatting_element->parser_token);
 
-  std::shared_ptr< DOM_Element> new_elem = treebuilder->create_element_for_token(
+  std::shared_ptr< DOM::Element> new_elem = treebuilder->create_element_for_token(
    formatting_element_tag, INFRA_NAMESPACE_HTML, furthest_block);
 
   /* Step 16. */
-  for (std::shared_ptr< DOM_Node> child : furthest_block->child_nodes)
+  for (std::shared_ptr< DOM::Node> child : furthest_block->child_nodes)
     new_elem->append_node(child);
 
   /* Step 17. */
-  furthest_block->append_node(std::dynamic_pointer_cast<DOM_Node>(new_elem));
+  furthest_block->append_node(std::dynamic_pointer_cast<DOM::Node>(new_elem));
 
   /* Step 18. */
   treebuilder->formatting_elements.remove(formatting_element);
@@ -1177,7 +1177,7 @@ in_body_mode(TreeBuilder *treebuilder,
             if (! treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_LI))
               treebuilder->error();
 
-            std::shared_ptr< DOM_Element> popped;
+            std::shared_ptr< DOM::Element> popped;
 
             do {
               popped = treebuilder->open_elements.back();
@@ -1213,7 +1213,7 @@ in_body_mode(TreeBuilder *treebuilder,
             if (! treebuilder->current_node()->has_html_element_index(tag->local_name))
               treebuilder->error();
 
-            std::shared_ptr< DOM_Element> popped;
+            std::shared_ptr< DOM::Element> popped;
 
             do {
               popped = treebuilder->open_elements.back();
@@ -1256,7 +1256,7 @@ in_body_mode(TreeBuilder *treebuilder,
           treebuilder->error();
           treebuilder->generate_implied_end_tags();
 
-          std::shared_ptr< DOM_Element> popped;
+          std::shared_ptr< DOM::Element> popped;
 
           do {
             popped = treebuilder->open_elements.back();
@@ -1671,7 +1671,7 @@ in_body_mode(TreeBuilder *treebuilder,
         if (! treebuilder->current_node()->has_html_element_index(tag->local_name))
           treebuilder->error();
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           LOGF("open_elements has %d elements\n", static_cast<int>(treebuilder->open_elements.size()));
@@ -1721,7 +1721,7 @@ in_body_mode(TreeBuilder *treebuilder,
         if (! treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_LI))
           treebuilder->error();
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -1743,7 +1743,7 @@ in_body_mode(TreeBuilder *treebuilder,
         if (! treebuilder->current_node()->has_html_element_index(tag->local_name))
           treebuilder->error();
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -1773,7 +1773,7 @@ in_body_mode(TreeBuilder *treebuilder,
         if (!treebuilder->current_node()->has_html_element_index(tag->local_name))
           treebuilder->error();
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -1810,7 +1810,7 @@ in_body_mode(TreeBuilder *treebuilder,
         if (! treebuilder->current_node()->has_html_element_index(tag->local_name))
           treebuilder->error();
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -1843,7 +1843,7 @@ any_other_end_tag:
             if (node != treebuilder->current_node())
               treebuilder->error();
 
-            std::shared_ptr< DOM_Element> popped;
+            std::shared_ptr< DOM::Element> popped;
 
             do {
               popped = treebuilder->open_elements.back();
@@ -2091,7 +2091,7 @@ in_table_mode(TreeBuilder *treebuilder,
         treebuilder->error();
         /* XXX: table in scope */
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -2224,7 +2224,7 @@ in_caption_mode(TreeBuilder *treebuilder,
         if (! treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_CAPTION))
           treebuilder->error();
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -2250,7 +2250,7 @@ in_caption_mode(TreeBuilder *treebuilder,
         if (! treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_CAPTION))
           treebuilder->error();
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -2302,7 +2302,7 @@ in_caption_mode(TreeBuilder *treebuilder,
         if (! treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_CAPTION))
           treebuilder->error();
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -2592,7 +2592,7 @@ in_table_body_mode(TreeBuilder *treebuilder,
 static void
 clear_stack_to_table_row_context(TreeBuilder *treebuilder)
 {
-  std::shared_ptr< DOM_Element> popped;
+  std::shared_ptr< DOM::Element> popped;
 
   do {
     popped = treebuilder->open_elements.back();
@@ -2715,7 +2715,7 @@ close_cell(TreeBuilder *treebuilder)
       || treebuilder->current_node()->has_html_element_index(HTML_ELEMENT_TH)))
     treebuilder->error();
 
-  std::shared_ptr< DOM_Element> popped;
+  std::shared_ptr< DOM::Element> popped;
 
   do {
     popped = treebuilder->open_elements.back();
@@ -2753,7 +2753,7 @@ in_cell_mode(TreeBuilder *treebuilder,
         if (! treebuilder->current_node()->has_html_element_index(tag->local_name))
           treebuilder->error();
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -2905,7 +2905,7 @@ in_select_mode(TreeBuilder *treebuilder,
           return TREEBUILDER_STATUS_IGNORE;
         }
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -2926,7 +2926,7 @@ in_select_mode(TreeBuilder *treebuilder,
           return TREEBUILDER_STATUS_IGNORE;
         }
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -2991,7 +2991,7 @@ in_select_mode(TreeBuilder *treebuilder,
           return TREEBUILDER_STATUS_IGNORE;
         }
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -3047,7 +3047,7 @@ in_select_in_table_mode(TreeBuilder *treebuilder,
       case HTML_ELEMENT_TD:      case HTML_ELEMENT_TH: {
         treebuilder->error();
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -3081,7 +3081,7 @@ in_select_in_table_mode(TreeBuilder *treebuilder,
                static_cast<enum html_element_index>(tag->local_name)))
           return TREEBUILDER_STATUS_IGNORE;
 
-        std::shared_ptr< DOM_Element> popped;
+        std::shared_ptr< DOM::Element> popped;
 
         do {
           popped = treebuilder->open_elements.back();
@@ -3215,7 +3215,7 @@ in_template_mode(TreeBuilder *treebuilder,
 
     treebuilder->error();
 
-    std::shared_ptr< DOM_Element> popped;
+    std::shared_ptr< DOM::Element> popped;
 
     do {
       popped = treebuilder->open_elements.back();
@@ -3254,7 +3254,7 @@ after_body_mode(TreeBuilder *treebuilder,
 
   if (token_type == TOKEN_COMMENT) {
     treebuilder->insert_comment(&token_data->comment,
-     InsertionLocation{std::dynamic_pointer_cast<DOM_Node>(treebuilder->open_elements.front()), nullptr});
+     InsertionLocation{std::dynamic_pointer_cast<DOM::Node>(treebuilder->open_elements.front()), nullptr});
     return TREEBUILDER_STATUS_OK;
   }
 
@@ -3518,7 +3518,7 @@ after_after_body_mode(TreeBuilder *treebuilder,
 
   if (token_type == TOKEN_COMMENT) {
     treebuilder->insert_comment(&token_data->comment,
-     InsertionLocation{std::dynamic_pointer_cast< DOM_Node>(treebuilder->document), nullptr});
+     InsertionLocation{std::dynamic_pointer_cast< DOM::Node>(treebuilder->document), nullptr});
     return TREEBUILDER_STATUS_OK;
   }
 
@@ -3570,7 +3570,7 @@ after_after_frameset_mode(TreeBuilder *treebuilder,
 
   if (token_type == TOKEN_COMMENT) {
     treebuilder->insert_comment(&token_data->comment,
-     InsertionLocation{std::dynamic_pointer_cast<DOM_Node>(treebuilder->document), nullptr});
+     InsertionLocation{std::dynamic_pointer_cast<DOM::Node>(treebuilder->document), nullptr});
     return TREEBUILDER_STATUS_OK;
   }
 

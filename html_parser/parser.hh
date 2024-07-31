@@ -8,7 +8,7 @@
 #include "dom/core/document.hh"
 
 
-int html_parse_document(std::shared_ptr< DOM_Document> document,
+int html_parse_document(std::shared_ptr< DOM::Document> document,
                         char const *input, size_t input_len);
 
 

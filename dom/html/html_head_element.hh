@@ -6,18 +6,23 @@
 #include "dom/html/html_element.hh"
 
 
-class DOM_Document;
+namespace DOM {
 
 
-class DOM_HTMLHeadElement : public DOM_HTMLElement {
+class Document;
+
+
+class HTMLHeadElement : public DOM::HTMLElement {
   public:
-    DOM_HTMLHeadElement(std::shared_ptr< DOM_Document> document,
-                        enum InfraNamespace name_space,
-                        uint16_t local_name)
-    : DOM_HTMLElement(document, name_space, local_name) { }
-    virtual ~DOM_HTMLHeadElement() { }
+    HTMLHeadElement(std::shared_ptr< DOM::Document> document,
+                    enum InfraNamespace name_space,
+                    uint16_t local_name)
+    : DOM::HTMLElement(document, name_space, local_name) { }
+    virtual ~HTMLHeadElement() = default;
 };
 
+
+} /* namespace DOM */
 
 
 #endif /* !defined(_queequeg_dom_html_head_element_hh_) */

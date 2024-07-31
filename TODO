@@ -11,11 +11,9 @@
 [ ] class DOM_Element : local_name -> local_index (clarity)
 [ ] Should built-in elements get inserted without checking the string/only the local_name?
 
-[ ] Text support
 [ ] Tag attribute support
-[ ] Comment support#
 
 [ ] Use references for std::string in DOM_CharacterData derived ctors?
 
-[ ] HTML Parser: list of active formatting elements
-[ ] HTML Parser: adoption agency algorithm
+[  ] Move DOM classes into their own namespace
+

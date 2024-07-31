@@ -9,26 +9,29 @@
 #include "dom/core/node.hh"
 
 
-DOM_Node::DOM_Node(std::shared_ptr< DOM_Document> node_document,
-                   enum dom_node_type node_type)
+namespace DOM {
+
+
+Node::Node(std::shared_ptr< DOM::Document> node_document,
+           enum dom_node_type node_type)
 {
   this->node_document = node_document;
   this->node_type = node_type;
 }
 
 
-std::shared_ptr< DOM_Node>
-DOM_Node::get_previous_sibling(void)
+std::shared_ptr< DOM::Node>
+Node::get_previous_sibling(void)
 {
   if (this->parent_node.lock() == nullptr)
     return nullptr;
 
-  for (std::shared_ptr< DOM_Node> cur_node =
-        std::dynamic_pointer_cast<DOM_Node>(this->shared_from_this());
+  for (std::shared_ptr< Node> cur_node =
+        std::dynamic_pointer_cast<Node>(this->shared_from_this());
        cur_node->parent_node.lock() != nullptr;
        cur_node = cur_node->parent_node.lock())
   {
-    std::shared_ptr< DOM_Node> cur_parent = cur_node->parent_node.lock();
+    std::shared_ptr< Node> cur_parent = cur_node->parent_node.lock();
 
     if (cur_parent->child_nodes.front() == cur_node) {
       /*
@@ -54,13 +57,13 @@ DOM_Node::get_previous_sibling(void)
 
 
 void
-DOM_Node::insert_node(std::shared_ptr< DOM_Node> node,
-                      std::shared_ptr< DOM_Node> child,
-                      bool supp_observers_flag)
+Node::insert_node(std::shared_ptr< Node> node,
+                  std::shared_ptr< Node> child,
+                  bool supp_observers_flag)
 {
   (void) supp_observers_flag;
 
-  std::shared_ptr< DOM_Node> parent = std::static_pointer_cast< DOM_Node>(this->shared_from_this());
+  std::shared_ptr< Node> parent = std::static_pointer_cast<Node>(this->shared_from_this());
 
   if (child == nullptr) {
     parent->child_nodes.push_back(node);
@@ -77,9 +80,12 @@ DOM_Node::insert_node(std::shared_ptr< DOM_Node> node,
 
 
 void
-DOM_Node::append_node(std::shared_ptr< DOM_Node> node,
-                      bool supp_observers_flag)
+Node::append_node(std::shared_ptr< Node> node,
+                  bool supp_observers_flag)
 {
   this->insert_node(node, nullptr, supp_observers_flag);
 }
+
+
+} /* namespace DOM */
 

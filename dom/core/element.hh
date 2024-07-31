@@ -21,12 +21,15 @@ enum dom_custom_element_state {
 };
 
 
-class DOM_Element : public DOM_Node {
+namespace DOM {
+
+
+class Element : public DOM::Node {
   public:
-    DOM_Element(std::shared_ptr< DOM_Document> node_document,
+    Element(std::shared_ptr< DOM::Document> node_document,
                 enum InfraNamespace name_space,
                 uint16_t local_name);
-    virtual ~DOM_Element() { }
+    virtual ~Element() = default;
 
 
   public:
@@ -56,6 +59,9 @@ class DOM_Element : public DOM_Node {
     }
 
 };
+
+
+} /* namespace DOM */
 
 
 #endif /* !defined(_queequeg_dom_element_hh_) */

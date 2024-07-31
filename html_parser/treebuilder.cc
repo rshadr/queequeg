@@ -27,7 +27,7 @@
 // #undef TREEBUILDER_PROCESS_TOKENS
 
 
-TreeBuilder::TreeBuilder(std::shared_ptr< DOM_Document> document)
+TreeBuilder::TreeBuilder(std::shared_ptr< DOM::Document> document)
 {
   this->document = document;
 }
@@ -92,11 +92,11 @@ TreeBuilder::reset_insertion_mode_appropriately(void)
     const int elem_idx = i;
     const int node_idx = elem_idx;
 
-    std::shared_ptr< DOM_Element> elem = this->open_elements[elem_idx];
+    std::shared_ptr< DOM::Element> elem = this->open_elements[elem_idx];
     /*
      * Separate pointer copy for the fragment case
      */
-    std::shared_ptr< DOM_Element> node = elem;
+    std::shared_ptr< DOM::Element> node = elem;
 
     if (node == this->open_elements.front())
       last = true;
@@ -108,7 +108,7 @@ TreeBuilder::reset_insertion_mode_appropriately(void)
     if (node->has_html_element_index(HTML_ELEMENT_SELECT)) {
       if (! last) {
         int ancestor_idx = node_idx;
-        std::shared_ptr< DOM_Element> ancestor = this->open_elements[ancestor_idx];
+        std::shared_ptr< DOM::Element> ancestor = this->open_elements[ancestor_idx];
 
         while (ancestor_idx > 0) {
           ancestor = this->open_elements[--ancestor_idx];
@@ -308,7 +308,7 @@ static const std::set<uint16_t> k_special_html_elements_set_ = {
 
 
 bool
-TreeBuilder::is_special_element(std::shared_ptr< DOM_Element> element) const
+TreeBuilder::is_special_element(std::shared_ptr< DOM::Element> element) const
 {
   /* XXX: other namespaces */
 
@@ -325,7 +325,7 @@ TreeBuilder::is_special_element(std::shared_ptr< DOM_Element> element) const
  * not when creating the element.
  */
 bool
-TreeBuilder::is_formatting_element(std::shared_ptr< DOM_Element> element) const
+TreeBuilder::is_formatting_element(std::shared_ptr< DOM::Element> element) const
 {
   if (element->name_space != INFRA_NAMESPACE_HTML)
     return false;
@@ -350,15 +350,15 @@ TreeBuilder::is_formatting_element(std::shared_ptr< DOM_Element> element) const
  * "in scope" algorithms; see 'html_parser/common.h' for details
  */
 bool
-TreeBuilder::scope_node_equals_(std::shared_ptr< DOM_Element> node,
-                                std::shared_ptr< DOM_Element> target) const
+TreeBuilder::scope_node_equals_(std::shared_ptr< DOM::Element> node,
+                                std::shared_ptr< DOM::Element> target) const
 {
   return (node == target);
 }
 
 
 bool
-TreeBuilder::scope_node_equals_(std::shared_ptr< DOM_Element> node,
+TreeBuilder::scope_node_equals_(std::shared_ptr< DOM::Element> node,
                                 std::initializer_list< enum html_element_index> html_local_names) const
 {
   if (node->name_space != INFRA_NAMESPACE_HTML)
@@ -377,7 +377,7 @@ TreeBuilder::scope_node_equals_(std::shared_ptr< DOM_Element> node,
  */
 bool
 TreeBuilder::scope_batch_contains_(std::vector< std::pair< uint16_t, uint16_t>> const *list,
-                                   std::shared_ptr< DOM_Element> elem) const
+                                   std::shared_ptr< DOM::Element> elem) const
 {
   for (const auto& [name_space, local_name] : *list)
     if ((name_space == INFRA_NAMESPACE_HTML)
@@ -426,9 +426,9 @@ TreeBuilder::have_target_node_in_scope_(std::vector< std::pair< uint16_t, uint16
  * Only these can be instantiated
  */
 template
-bool TreeBuilder::have_target_node_in_scope_< std::shared_ptr< DOM_Element>>(
+bool TreeBuilder::have_target_node_in_scope_< std::shared_ptr< DOM::Element>>(
       std::vector< std::pair< uint16_t, uint16_t>> const *list,
-      std::shared_ptr< DOM_Element> elem) const;
+      std::shared_ptr< DOM::Element> elem) const;
 template
 bool TreeBuilder::have_target_node_in_scope_< std::initializer_list< enum html_element_index>>(
       std::vector< std::pair< uint16_t, uint16_t>> const *list,
@@ -497,13 +497,9 @@ TreeBuilder::push_formatting_marker(void)
 
 
 bool
-TreeBuilder::same_parsed_elements(std::shared_ptr< DOM_Element> lhs,
-                                  std::shared_ptr< DOM_Element> rhs) const
+TreeBuilder::same_parsed_elements(std::shared_ptr< DOM::Element> lhs,
+                                  std::shared_ptr< DOM::Element> rhs) const
 {
-  /*
-   * XXX: HTML lock-in?
-   */
-
   if (! (lhs->name_space == rhs->name_space
       && lhs->local_name == rhs->local_name))
     return false;
@@ -515,10 +511,10 @@ TreeBuilder::same_parsed_elements(std::shared_ptr< DOM_Element> lhs,
 
 
 void
-TreeBuilder::push_to_active_formatting_elements(std::shared_ptr< DOM_Element> element)
+TreeBuilder::push_to_active_formatting_elements(std::shared_ptr< DOM::Element> element)
 {
   /* Step 1. */
-  std::shared_ptr< DOM_Element> fitting_entry = nullptr;
+  std::shared_ptr< DOM::Element> fitting_entry = nullptr;
   int n_fitting_entries = 0;
 
   for (const auto &entry : std::ranges::views::reverse(this->formatting_elements))
@@ -578,7 +574,7 @@ advance:
   /* Step 8. */
 create:
   struct tag_token *tag = static_cast<struct tag_token *>((*entry_it)->parser_token);
-  std::shared_ptr< DOM_Element> new_element = std::dynamic_pointer_cast<DOM_Element>(
+  std::shared_ptr< DOM::Element> new_element = std::dynamic_pointer_cast<DOM::Element>(
    this->insert_html_element(tag));
 
   /* Step 9. */
@@ -603,7 +599,7 @@ TreeBuilder::clear_active_formatting_elements_to_marker(void)
     auto entry_it = std::prev(this->formatting_elements.end());
 
     /* Step 2. */
-    std::shared_ptr< DOM_Element> entry = *entry_it;
+    std::shared_ptr< DOM::Element> entry = *entry_it;
     struct tag_token *tag = static_cast<struct tag_token *>(entry->parser_token);
 
     entry->parser_token = nullptr;
@@ -630,11 +626,11 @@ TreeBuilder::acknowledge_self_closing_flag(struct tag_token *tag) const
 
 
 InsertionLocation
-TreeBuilder::appropriate_insertion_place(std::shared_ptr< DOM_Element> override_target)
+TreeBuilder::appropriate_insertion_place(std::shared_ptr< DOM::Element> override_target)
 {
   InsertionLocation location = { nullptr, nullptr };
 
-  std::shared_ptr< DOM_Element> target = override_target != nullptr
+  std::shared_ptr< DOM::Element> target = override_target != nullptr
                                        ? override_target
                                        : this->current_node();
 
@@ -644,8 +640,8 @@ TreeBuilder::appropriate_insertion_place(std::shared_ptr< DOM_Element> override_
     || target->has_html_element_index(HTML_ELEMENT_TFOOT)
     || target->has_html_element_index(HTML_ELEMENT_THEAD)
     || target->has_html_element_index(HTML_ELEMENT_TR))) {
-    std::shared_ptr< DOM_Element> last_template = nullptr;
-    std::shared_ptr< DOM_Element> last_table    = nullptr;
+    std::shared_ptr< DOM::Element> last_template = nullptr;
+    std::shared_ptr< DOM::Element> last_table    = nullptr;
     int last_template_idx = -1;
     int last_table_idx    = -1;
 
@@ -678,15 +674,15 @@ TreeBuilder::appropriate_insertion_place(std::shared_ptr< DOM_Element> override_
 
     if (last_table == nullptr) {
       /* fragment case */
-      location.parent = std::dynamic_pointer_cast<DOM_Node>(this->open_elements.front());
+      location.parent = std::dynamic_pointer_cast<DOM::Node>(this->open_elements.front());
       location.child  = nullptr;
       goto sanitize;
     }
 
 
-    std::shared_ptr< DOM_Element> prev_elem = this->open_elements[last_table_idx + 1];
+    std::shared_ptr< DOM::Element> prev_elem = this->open_elements[last_table_idx + 1];
 
-    location.parent = std::dynamic_pointer_cast<DOM_Node>(prev_elem);
+    location.parent = std::dynamic_pointer_cast<DOM::Node>(prev_elem);
     location.child  = nullptr;
 
   } else {
@@ -697,7 +693,7 @@ TreeBuilder::appropriate_insertion_place(std::shared_ptr< DOM_Element> override_
 
 sanitize:
   if (location.parent->is_element()
-   && std::dynamic_pointer_cast<DOM_Element>(location.parent)->has_html_element_index(HTML_ELEMENT_TEMPLATE)) {
+   && std::dynamic_pointer_cast<DOM::Element>(location.parent)->has_html_element_index(HTML_ELEMENT_TEMPLATE)) {
     /* XXX: template contents */
   }
 
@@ -707,12 +703,12 @@ sanitize:
 
 
 [[nodiscard]]
-std::shared_ptr< DOM_Element>
+std::shared_ptr< DOM::Element>
 TreeBuilder::create_element_for_token(struct tag_token const *tag,
                                       enum InfraNamespace name_space,
-                                      std::shared_ptr< DOM_Node> intended_parent)
+                                      std::shared_ptr< DOM::Node> intended_parent)
 {
-  std::shared_ptr< DOM_Document> document = intended_parent->node_document.lock();
+  std::shared_ptr< DOM::Document> document = intended_parent->node_document.lock();
   int16_t local_name = 0;
   void *is = nullptr;
   void *definition = nullptr;
@@ -724,7 +720,7 @@ TreeBuilder::create_element_for_token(struct tag_token const *tag,
   local_name = HTML::k_local_names_table.at(tag->tag_name);
   /* ... */
 
-  std::shared_ptr< DOM_Element> element =
+  std::shared_ptr< DOM::Element> element =
    document->create_element(local_name, name_space, nullptr, is, exec_script);
 
   /* ... */
@@ -740,7 +736,7 @@ TreeBuilder::create_element_for_token(struct tag_token const *tag,
 }
 
 
-std::shared_ptr< DOM_Node>
+std::shared_ptr< DOM::Node>
 TreeBuilder::node_before(InsertionLocation location)
 {
   /*
@@ -761,15 +757,15 @@ TreeBuilder::node_before(InsertionLocation location)
 
 void
 TreeBuilder::insert_element_at_location(InsertionLocation location,
-                                        std::shared_ptr< DOM_Element> element) const
+                                        std::shared_ptr< DOM::Element> element) const
 {
-  location.parent->insert_node(std::dynamic_pointer_cast<DOM_Node>(element),
+  location.parent->insert_node(std::dynamic_pointer_cast<DOM::Node>(element),
    location.child);
 }
 
 
 void
-TreeBuilder::insert_element_at_adjusted_insertion_location(std::shared_ptr< DOM_Element> element)
+TreeBuilder::insert_element_at_adjusted_insertion_location(std::shared_ptr< DOM::Element> element)
 {
   InsertionLocation location = this->appropriate_insertion_place();
   /* XXX: check if can insert */
@@ -782,14 +778,14 @@ TreeBuilder::insert_element_at_adjusted_insertion_location(std::shared_ptr< DOM_
 }
 
 
-std::shared_ptr< DOM_Element>
+std::shared_ptr< DOM::Element>
 TreeBuilder::insert_foreign_element(struct tag_token const *tag,
                                     enum InfraNamespace name_space,
                                     bool only_add_to_element_stack)
 {
   InsertionLocation location = this->appropriate_insertion_place();
 
-  std::shared_ptr< DOM_Element> element =
+  std::shared_ptr< DOM::Element> element =
    this->create_element_for_token(tag, name_space, location.parent);
 
   if (!only_add_to_element_stack)
@@ -801,7 +797,7 @@ TreeBuilder::insert_foreign_element(struct tag_token const *tag,
 }
 
 
-std::shared_ptr< DOM_Element>
+std::shared_ptr< DOM::Element>
 TreeBuilder::insert_html_element(struct tag_token const *tag)
 {
   return this->insert_foreign_element(tag, INFRA_NAMESPACE_HTML, false);
@@ -816,7 +812,7 @@ TreeBuilder::insert_character_array_(char32_t const *arr, size_t arr_len)
   if (location.parent->is_document())
     return;
 
-  std::shared_ptr< DOM_Node> prev_sibling = TreeBuilder::node_before(location);
+  std::shared_ptr< DOM::Node> prev_sibling = TreeBuilder::node_before(location);
 
 #if 0
   LOGF("{ %p, %p }\n",
@@ -824,13 +820,13 @@ TreeBuilder::insert_character_array_(char32_t const *arr, size_t arr_len)
     reinterpret_cast<void *>(location.child.get()));
 #endif
 
-  std::shared_ptr< DOM_Text> text = nullptr;
+  std::shared_ptr< DOM::Text> text = nullptr;
 
   if ((prev_sibling != nullptr) && prev_sibling->is_text()) {
-    text = std::dynamic_pointer_cast<DOM_Text>(prev_sibling);
+    text = std::dynamic_pointer_cast<DOM::Text>(prev_sibling);
   } else {
-    text = std::make_shared<DOM_Text>(this->document);
-    location.parent->insert_node(std::dynamic_pointer_cast<DOM_Node>(text),
+    text = std::make_shared<DOM::Text>(this->document);
+    location.parent->insert_node(std::dynamic_pointer_cast<DOM::Node>(text),
      location.child);
   }
 
@@ -858,11 +854,11 @@ void
 TreeBuilder::insert_comment(std::string *data,
                             InsertionLocation location)
 {
-  std::shared_ptr< DOM_Comment> comment =
-   std::make_shared<DOM_Comment>(location.parent->node_document.lock(),
+  std::shared_ptr< DOM::Comment> comment =
+   std::make_shared<DOM::Comment>(location.parent->node_document.lock(),
                                  *data);
 
-  location.parent->insert_node(std::dynamic_pointer_cast<DOM_Node>(comment),
+  location.parent->insert_node(std::dynamic_pointer_cast<DOM::Node>(comment),
    location.child);
 
 }
@@ -903,7 +899,7 @@ TreeBuilder::generate_implied_end_tags(uint16_t exclude_html)
 {
 
   while (true) {
-    const std::shared_ptr< DOM_Element> cur_node = this->current_node();
+    const std::shared_ptr< DOM::Element> cur_node = this->current_node();
 
 
     if (exclude_html != 0

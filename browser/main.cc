@@ -69,8 +69,8 @@ main(int argc, char *argv[])
   close(fd);
   madvise(file_data, file_size, MADV_SEQUENTIAL);
 
-  std::shared_ptr< DOM_Document> document = std::make_shared<DOM_Document>(DOM_DOCUMENT_FORMAT_HTML);
-  document->node_document = std::static_pointer_cast<DOM_Document>(document->shared_from_this());
+  std::shared_ptr< DOM::Document> document = std::make_shared<DOM::Document>(DOM_DOCUMENT_FORMAT_HTML);
+  document->node_document = std::static_pointer_cast<DOM::Document>(document->shared_from_this());
 
   html_parse_document(document, file_data, file_size);
 
@@ -78,8 +78,8 @@ main(int argc, char *argv[])
     die("error: couldn't unmap file '%s'\n", file_path);
 
 
-  printf("Document instance size: %zu\n", sizeof (DOM_Document));
-  printf("Element instance size: %zu\n", sizeof (DOM_Element));
+  printf("Document instance size: %zu\n", sizeof (DOM::Document));
+  printf("Element instance size: %zu\n", sizeof (DOM::Element));
 
   printf("Enum size: %zu\n", sizeof (enum html_element_index));
 

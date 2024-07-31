@@ -24,6 +24,10 @@ static struct {
 /*
  * cheap hack to roughly know where we are in the source document
  */
+
+extern "C" {
+
+
 [[noreturn]]
 static void
 sigsegv_handler(int signal)
@@ -45,6 +49,9 @@ sigsegv_handler(int signal)
 }
 
 
+} /* extern "C" */
+
+
 static void
 register_signal_handlers(Tokenizer *tokenizer,
                          TreeBuilder *treebuilder)
@@ -59,7 +66,7 @@ register_signal_handlers(Tokenizer *tokenizer,
 
 
 int
-html_parse_document(std::shared_ptr< DOM_Document> document,
+html_parse_document(std::shared_ptr< DOM::Document> document,
                     char const *input, size_t input_len)
 {
   Tokenizer   tokenizer   = Tokenizer(input, input_len);
@@ -78,7 +85,7 @@ html_parse_document(std::shared_ptr< DOM_Document> document,
 
   printf("%d elements left on stack after parsing:\n",
     static_cast<int>(treebuilder.open_elements.size()));
-  for (std::shared_ptr< DOM_Element> elem : treebuilder.open_elements)
+  for (auto& elem : treebuilder.open_elements)
     printf("  element of index %d\n", static_cast<int>(elem->local_name));
 
   return 0;

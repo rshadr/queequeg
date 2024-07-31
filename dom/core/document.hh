@@ -14,10 +14,6 @@
 #include "dom/core/node.hh"
 
 
-class DOM_DocumentType;
-class DOM_Element;
-
-
 enum dom_document_format {
   DOM_DOCUMENT_FORMAT_XML,
   DOM_DOCUMENT_FORMAT_HTML,
@@ -46,13 +42,20 @@ enum dom_document_parser_status {
 };
 
 
-class DOM_Document : public DOM_Node {
+namespace DOM {
+
+
+class DocumentType;
+class Element;
+
+
+class Document : public DOM::Node {
   public:
-    DOM_Document(enum dom_document_format format = DOM_DOCUMENT_FORMAT_HTML);
-    virtual ~DOM_Document();
+    Document(enum dom_document_format format = DOM_DOCUMENT_FORMAT_HTML);
+    virtual ~Document() = default;
 
   public:
-    std::shared_ptr< DOM_DocumentType> doctype = nullptr;
+    std::shared_ptr< DOM::DocumentType> doctype = nullptr;
 
     enum dom_document_parser_status parser_status = DOM_DOCUMENT_PARSER_STATUS_UNAVAILABLE;
 
@@ -60,12 +63,15 @@ class DOM_Document : public DOM_Node {
     enum dom_document_quirks_mode  quirks_mode;
 
 
-    [[nodiscard]] std::shared_ptr< DOM_Element> create_element(uint16_t local_name,
-                                                               enum InfraNamespace name_space,
-                                                               void *prefix = nullptr,
-                                                               void *is = nullptr,
-                                                               bool sync_custom_elements = false);
+    [[nodiscard]] std::shared_ptr< DOM::Element> create_element(uint16_t local_name,
+                                                                enum InfraNamespace name_space,
+                                                                void *prefix = nullptr,
+                                                                void *is = nullptr,
+                                                                bool sync_custom_elements = false);
 };
+
+
+} /* namespace DOM */
 
 #endif /* !defined(_queequeg_dom_document_hh_) */
 

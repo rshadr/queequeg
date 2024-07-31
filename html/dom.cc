@@ -10,8 +10,8 @@
 namespace HTML {
 
 
-DOM_HTMLElement *
-new_element_with_index(std::shared_ptr< DOM_Document> document,
+DOM::HTMLElement *
+new_element_with_index(std::shared_ptr< DOM::Document> document,
                        uint16_t local_name)
 {
   (void) document;
@@ -20,26 +20,30 @@ new_element_with_index(std::shared_ptr< DOM_Document> document,
   {
     switch (local_name)
     {
+#if 0
       case HTML_ELEMENT_APPLET:  case HTML_ELEMENT_BGSOUND: case HTML_ELEMENT_BLINK:
       case HTML_ELEMENT_ISINDEX: case HTML_ELEMENT_KEYGEN:  case HTML_ELEMENT_MULTICOL:
       case HTML_ELEMENT_NEXTID:  case HTML_ELEMENT_SPACER: {
         /* XXX */
         return nullptr;
       }
+#endif
 
 
       case HTML_ELEMENT_ACRONYM:  case HTML_ELEMENT_BASEFONT:  case HTML_ELEMENT_BIG:
       case HTML_ELEMENT_CENTER:   case HTML_ELEMENT_NOBR:      case HTML_ELEMENT_NOEMBED:
       case HTML_ELEMENT_NOFRAMES: case HTML_ELEMENT_PLAINTEXT: case HTML_ELEMENT_RB:
       case HTML_ELEMENT_RTC:      case HTML_ELEMENT_STRIKE:    case HTML_ELEMENT_TT: {
-        return new DOM_HTMLElement(document, INFRA_NAMESPACE_HTML, local_name);
+        return new DOM::HTMLElement(document, INFRA_NAMESPACE_HTML, local_name);
       }
 
 
+#if 0
       case HTML_ELEMENT_LISTING: case HTML_ELEMENT_XMP: {
         /* XXX */
         return nullptr;
       }
+#endif
 
 
       /*
@@ -47,19 +51,19 @@ new_element_with_index(std::shared_ptr< DOM_Document> document,
        * section.
        */
       case HTML_ELEMENT_HTML: {
-        return new DOM_HTMLHtmlElement(document, INFRA_NAMESPACE_HTML, local_name);
+        return new DOM::HTMLHtmlElement(document, INFRA_NAMESPACE_HTML, local_name);
       }
 
 
       case HTML_ELEMENT_HEAD: {
-        return new DOM_HTMLHeadElement(document, INFRA_NAMESPACE_HTML, local_name);
+        return new DOM::HTMLHeadElement(document, INFRA_NAMESPACE_HTML, local_name);
       }
 
 
       /* ... */
 
       case HTML_ELEMENT_SCRIPT: {
-        return new DOM_HTMLScriptElement(document, INFRA_NAMESPACE_HTML, local_name);
+        return new DOM::HTMLScriptElement(document, INFRA_NAMESPACE_HTML, local_name);
       }
 
 
@@ -67,7 +71,7 @@ new_element_with_index(std::shared_ptr< DOM_Document> document,
 
 
       default:
-        return new DOM_HTMLElement(document, INFRA_NAMESPACE_HTML, local_name);
+        return new DOM::HTMLElement(document, INFRA_NAMESPACE_HTML, local_name);
     }
   }
 
