@@ -787,7 +787,7 @@ aa_inner_loop_(TreeBuilder *treebuilder,
     }
 
     /* Step 4.13.6. */
-    struct tag_token *node_token = static_cast<struct tag_token *>(node->parser_token);
+    struct tag_token *node_token = &treebuilder->saved_tags.at(node);
     std::shared_ptr< DOM::Element> new_node =
      treebuilder->create_element_for_token(node_token, INFRA_NAMESPACE_HTML, common_ancestor);
 
@@ -940,7 +940,7 @@ adoption_agency_algorithm(TreeBuilder *treebuilder,
                                           last_node);
 
   /* Step 15. */
-  struct tag_token *formatting_element_tag = static_cast<struct tag_token *>(formatting_element->parser_token);
+  struct tag_token *formatting_element_tag = &treebuilder->saved_tags.at(formatting_element);
 
   std::shared_ptr< DOM::Element> new_elem = treebuilder->create_element_for_token(
    formatting_element_tag, INFRA_NAMESPACE_HTML, furthest_block);

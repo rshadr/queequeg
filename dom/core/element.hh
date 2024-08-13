@@ -27,8 +27,8 @@ namespace DOM {
 class Element : public DOM::Node {
   public:
     Element(std::shared_ptr< DOM::Document> node_document,
-                enum InfraNamespace name_space,
-                uint16_t local_name);
+            enum InfraNamespace name_space,
+            uint16_t local_name);
     virtual ~Element() = default;
 
 
@@ -38,11 +38,6 @@ class Element : public DOM::Node {
 
     void *custom_definition;
     enum dom_custom_element_state custom_state = DOM_CESTATE_UNDEFINED;
-
-    /*
-     * opaque pointer only used by the parser
-     */
-    void *parser_token = nullptr;
 
 
   public:

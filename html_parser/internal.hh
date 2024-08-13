@@ -403,6 +403,11 @@ class TreeBuilder final {
     std::list< std::shared_ptr< DOM::Element>> formatting_elements = { };
 
     /*
+     * for the "adoption agency algorithm"
+     */
+    std::unordered_map< std::shared_ptr< DOM::Element>, struct tag_token> saved_tags = { };
+
+    /*
      * dummy element to get an unique smart pointer
      */
     std::shared_ptr< DOM::Element> FORMATTING_MARKER =

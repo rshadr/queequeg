@@ -573,13 +573,11 @@ advance:
 
   /* Step 8. */
 create:
-  struct tag_token *tag = static_cast<struct tag_token *>((*entry_it)->parser_token);
+  struct tag_token *tag = &this->saved_tags.at( *entry_it );
   std::shared_ptr< DOM::Element> new_element = std::dynamic_pointer_cast<DOM::Element>(
    this->insert_html_element(tag));
 
   /* Step 9. */
-  (*entry_it)->parser_token = nullptr;
-  // delete tag;
   *entry_it = new_element;
   auto new_element_it = entry_it;
 
@@ -599,16 +597,10 @@ TreeBuilder::clear_active_formatting_elements_to_marker(void)
     auto entry_it = std::prev(this->formatting_elements.end());
 
     /* Step 2. */
-    std::shared_ptr< DOM::Element> entry = *entry_it;
-    struct tag_token *tag = static_cast<struct tag_token *>(entry->parser_token);
-
-    entry->parser_token = nullptr;
-    delete tag;
-
     this->formatting_elements.erase(entry_it);
 
     /* Step 3. */
-    if (entry == this->FORMATTING_MARKER)
+    if (*entry_it == this->FORMATTING_MARKER)
       return;
 
     /* Step 4. LOOP */
@@ -730,7 +722,7 @@ TreeBuilder::create_element_for_token(struct tag_token const *tag,
    * Needed for the list of active formatting elements
    */
   if (this->is_formatting_element(element))
-    element->parser_token = static_cast<void *>(new tag_token(*tag));
+    this->saved_tags.emplace(element, *tag);
 
   return element;
 }
@@ -788,8 +780,8 @@ TreeBuilder::insert_foreign_element(struct tag_token const *tag,
   std::shared_ptr< DOM::Element> element =
    this->create_element_for_token(tag, name_space, location.parent);
 
-  if (!only_add_to_element_stack)
-    (void)0; /* XXX */
+  if (! only_add_to_element_stack )
+    this->insert_element_at_adjusted_insertion_location(element);
 
   this->open_elements.push_back(element);
 
